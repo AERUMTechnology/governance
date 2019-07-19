@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('multi vesting wallet > promise', (accounts) => {
 
@@ -27,7 +28,7 @@ contract('multi vesting wallet > promise', (accounts) => {
 
   it("should not be able to promise tokens by not owner", async () => {
     try {
-      await vesting.promise(beneficiary1, 100, { from: simpleUser });
+      await vesting.promiseSingle(beneficiary1, 100, { from: simpleUser });
       assert.fail("was able to promise tokens by not owner");
     } catch (e) {
       utils.assertVMError(e);
@@ -35,13 +36,13 @@ contract('multi vesting wallet > promise', (accounts) => {
   });
 
   it("should be able to promise some tokens", async () => {
-    assert.equal(await vesting.promised(beneficiary1), 0);
-    assert.equal(await vesting.released(beneficiary1), 0);
+    assert.isTrue((await vesting.promised(beneficiary1)).eq(new BN(0)));
+    assert.isTrue((await vesting.released(beneficiary1)).eq(new BN(0)));
     assert.equal(await vesting.revoked(beneficiary1), false);
     assert.equal(await vesting.known(beneficiary1), false);
-    await vesting.promise(beneficiary1, 50, { from: owner });
-    assert.equal(await vesting.promised(beneficiary1), 50);
-    assert.equal(await vesting.released(beneficiary1), 0);
+    await vesting.promiseSingle(beneficiary1, 50, { from: owner });
+    assert.isTrue((await vesting.promised(beneficiary1)).eq(new BN(50)));
+    assert.isTrue((await vesting.released(beneficiary1)).eq(new BN(0)));
     assert.equal(await vesting.revoked(beneficiary1), false);
     assert.equal(await vesting.known(beneficiary1), true);
   });
@@ -63,7 +64,7 @@ contract('multi vesting wallet > promise', (accounts) => {
 
   it("should return correct number of beneficiaries", async () => {
     const numberOfBeneficiaries = await vesting.getBeneficiariesCount();
-    assert.isTrue(numberOfBeneficiaries.eq(2));
+    assert.isTrue(numberOfBeneficiaries.eq(new BN(2)));
   });
 
   it("should return correct beneficiaries", async () => {

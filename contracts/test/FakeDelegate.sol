@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
@@ -18,7 +18,7 @@ contract FakeDelegate {
     * @param _amount Amount to be staked
     */
     function stake(uint256 _amount) external {
-        require(token.transferFrom(msg.sender, this, _amount));
+        require(token.transferFrom(msg.sender, address(this), _amount));
     }
 
     /**

@@ -1,11 +1,11 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
-import "../governance/DelegateReference.sol";
+import "../governance/IDelegate.sol";
 
 /**
  * @title AirDrop
@@ -15,7 +15,7 @@ contract AirDrop is Ownable {
     using SafeMath for uint256;
     using SafeERC20 for ERC20;
 
-    event Promise(address indexed account, uint256 amount);
+    event Promised(address indexed account, uint256 amount);
     event Released(address indexed account, uint256 amount);
     event TokensReturn(uint256 amount);
 
@@ -45,7 +45,7 @@ contract AirDrop is Ownable {
      * @notice Transfers airdropped tokens to list of beneficiary.
      * @param _addresses List of beneficiaries
      */
-    function releaseBatch(address[] _addresses) external {
+    function releaseBatch(address[] calldata _addresses) external {
         for (uint256 index = 0; index < _addresses.length; index++) {
             _release(_addresses[index]);
         }
@@ -94,7 +94,7 @@ contract AirDrop is Ownable {
      */
     function returnRemaining() external onlyOwner {
         uint256 remaining = token.balanceOf(address(this));
-        token.safeTransfer(owner, remaining);
+        token.safeTransfer(owner(), remaining);
 
         emit TokensReturn(remaining);
     }
@@ -104,7 +104,7 @@ contract AirDrop is Ownable {
      * @param _beneficiary Account which gets tokens
      * @param _amount Amount of tokens
      */
-    function promise(address _beneficiary, uint256 _amount) public onlyOwner {
+    function promiseSingle(address _beneficiary, uint256 _amount) public onlyOwner {
         if (!known[_beneficiary]) {
             known[_beneficiary] = true;
             accounts.push(_beneficiary);
@@ -112,7 +112,7 @@ contract AirDrop is Ownable {
 
         balance[_beneficiary] = _amount;
 
-        emit Promise(_beneficiary, _amount);
+        emit Promised(_beneficiary, _amount);
     }
 
     /**
@@ -120,11 +120,11 @@ contract AirDrop is Ownable {
      * @param _addresses Accounts which will get promises
      * @param _amounts Promise amounts
      */
-    function promiseBatch(address[] _addresses, uint256[] _amounts) external onlyOwner {
+    function promiseBatch(address[] calldata _addresses, uint256[] calldata _amounts) external onlyOwner {
         require(_addresses.length == _amounts.length);
 
         for (uint256 index = 0; index < _addresses.length; index++) {
-            promise(_addresses[index], _amounts[index]);
+            promiseSingle(_addresses[index], _amounts[index]);
         }
     }
 

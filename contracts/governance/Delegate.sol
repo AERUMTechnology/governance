@@ -1,59 +1,54 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
-import "openzeppelin-eth/contracts/math/SafeMath.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-eth/contracts/ownership/Ownable.sol";
-import "zos-lib/contracts/Initializable.sol";
 
+import "./IGovernance.sol";
+import "./IDelegate.sol";
 import "../library/OperationStore.sol";
 import "../library/Conversions.sol";
-import "./GovernanceReference.sol";
-import "./DelegateReference.sol";
+import "../upgradeability/ParameterizedInitializable.sol";
 
 /**
  * @title Ethereum-based contract for delegate
  */
-contract Delegate is DelegateReference, Initializable, Ownable {
+contract Delegate is IDelegate, ParameterizedInitializable, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for ERC20;
     using OperationStore for uint256[];
-    using Conversions for bytes20;
+    using Conversions for bytes32;
 
     /** AER token **/
     ERC20 public token;
 
     /** Governance address **/
-    GovernanceReference public governance;
+    IGovernance public governance;
 
     /** Aerum address used for coin distribution **/
     address public aerum;
 
     /** Description name of the delegate **/
-    bytes20 public name;
-
-    /** Stake per user address in the delegate **/
-    mapping(address => uint256) public stakes;
+    bytes32 public name;
 
     /** Aerum address per ethereum address in the delegate **/
     mapping(address => address) public stakerAerumAddress;
 
-    /** Number of staked tokens locked to participate in coin distribution **/
-    uint256 public lockedStake;
+    /** Stake in the delegate **/
+    uint256[] stakeDelegate;
 
-    uint256[] stakeHistory;
-    uint256[] keepAliveHistory;
+    /** Stake per user address in the delegate **/
+    mapping(address => uint256[]) stakeHistory;
     uint256[] blacklistHistory;
     uint256[] activationHistory;
 
     event AerumAddressUpdated(address aerum);
-    event KeepAlive(uint256 timestamp);
     event BlacklistUpdated(bool blocked);
     event IsActiveUpdated(bool active);
 
     event Staked(address indexed staker, uint256 amount);
     event Unstaked(address indexed staker, uint256 amount);
-    event StakeLocked(uint256 amount);
 
     /** Check if the sender is a valid delegate **/
     modifier onlyGovernance {
@@ -78,38 +73,23 @@ contract Delegate is DelegateReference, Initializable, Ownable {
     * @dev This init is called by governance when created
     * @param _owner Delegate owner address
     * @param _token XRM token address
+    * @param _governance Governance address
     * @param _name Delegate name
     * @param _aerum Delegate Aerum address
     */
-    function init(address _owner, ERC20 _token, bytes20 _name, address _aerum) initializer public {
+    function init(address _owner, ERC20 _token, address _governance, bytes32 _name, address _aerum) initiator("v1") public {
         Ownable.initialize(_owner);
         token = _token;
         name = _name;
         aerum = _aerum;
-        governance = GovernanceReference(msg.sender);
+        governance = IGovernance(_governance);
     }
 
     /**
     * @notice Returns delegate name as string
     */
-    function getName() public view returns (string) {
-        return name.bytes20ToString();
-    }
-
-    /**
-    * @notice Notify governance contract this delegate is still alive
-    */
-    function keepAlive() external onlyOwner {
-        keepAliveHistory.storeTimestamp(block.timestamp);
-        emit KeepAlive(block.timestamp);
-    }
-
-    /**
-    * @notice Timestamp of the last keep alive message before the given timestamp
-    * @param _timestamp Time for which we would like to check last keep alive call
-    */
-    function getKeepAliveTimestamp(uint256 _timestamp) public view returns (uint256) {
-        return keepAliveHistory.getTimestamp(_timestamp);
+    function getName() public view returns (string memory) {
+        return name.bytes32ToString();
     }
 
     /**
@@ -117,7 +97,7 @@ contract Delegate is DelegateReference, Initializable, Ownable {
     * @param _aerum Aerum address
     */
     function setAerumAddress(address _aerum) external {
-        require(stakes[msg.sender] > 0);
+        require(stakeHistory[msg.sender].getInt(block.timestamp) > 0);
         stakerAerumAddress[msg.sender] = _aerum;
         emit AerumAddressUpdated(_aerum);
     }
@@ -177,8 +157,10 @@ contract Delegate is DelegateReference, Initializable, Ownable {
     */
     function stake(uint256 _amount) external onlyForApprovedDelegate() {
         address staker = msg.sender;
-        token.safeTransferFrom(staker, this, _amount);
-        stakes[staker] = stakes[staker].add(_amount);
+        token.safeTransferFrom(staker, address(this), _amount);
+        uint256 stakeAtTimestamp = stakeHistory[staker].getInt(block.timestamp);
+        stakeHistory[staker].storeInt(stakeAtTimestamp.add(_amount));
+        stakeDelegate.storeInt(stakeDelegate.getInt(block.timestamp).add(_amount));
         emit Staked(staker, _amount);
     }
 
@@ -188,30 +170,22 @@ contract Delegate is DelegateReference, Initializable, Ownable {
     */
     function unstake(uint256 _amount) external {
         address staker = msg.sender;
-        require(stakes[staker] >= _amount);
-        require(token.balanceOf(this).sub(_amount) >= lockedStake);
+        uint256 stakeAtTimestamp = stakeHistory[staker].getInt(block.timestamp);
+        require(stakeAtTimestamp >= _amount);
+        require(token.balanceOf(address(this)).sub(_amount) >= 0);
+        stakeHistory[staker].storeInt(stakeAtTimestamp.sub(_amount));
+        stakeDelegate.storeInt(stakeDelegate.getInt(block.timestamp).sub(_amount));
         token.safeTransfer(staker, _amount);
-        stakes[staker] = stakes[staker].sub(_amount);
         emit Unstaked(staker, _amount);
     }
 
     /**
     * @notice Return number of tokens staked by the specified staker
     * @param _staker Staker address
+    * @param _timestamp Time for which we would like to check stake
     */
-    function stakeOf(address _staker) external view returns (uint256) {
-        return stakes[_staker];
-    }
-
-    /**
-    * @notice Lock specified number of tokens in the Governance contract
-    * @param _amount Amount to lock
-    */
-    function lockStake(uint256 _amount) external onlyOwnerOrGovernance {
-        require(token.balanceOf(this) >= _amount);
-        stakeHistory.storeInt(_amount);
-        lockedStake = _amount;
-        emit StakeLocked(_amount);
+    function stakeOf(address _staker, uint256 _timestamp) external view returns (uint256) {
+        return stakeHistory[_staker].getInt(_timestamp);
     }
 
     /**
@@ -219,7 +193,7 @@ contract Delegate is DelegateReference, Initializable, Ownable {
     * @param _timestamp Time for which we would like to check stake
     */
     function getStake(uint256 _timestamp) public view returns (uint256) {
-        return stakeHistory.getInt(_timestamp);
+        return stakeDelegate.getInt(_timestamp);
     }
 
     /**
@@ -230,14 +204,6 @@ contract Delegate is DelegateReference, Initializable, Ownable {
     */
     function submitBlacklistProposal(bytes32 _id, address _delegate, bool _blacklisted) external onlyOwner {
         governance.submitBlacklistProposal(_id, _delegate, _blacklisted);
-    }
-
-    /**
-    * @notice Make a proposal to activate delegate. Can only be done delegate owner
-    * @param _id Proposal / voting id
-    */
-    function submitActivateProposal(bytes32 _id) external onlyOwner {
-        governance.submitActivateProposal(_id);
     }
 
     /**
@@ -258,4 +224,17 @@ contract Delegate is DelegateReference, Initializable, Ownable {
         governance.finalizeVoting(_id);
     }
 
+    /**
+    * @notice Returns delegate's Aerum address
+    */
+    function getDelegateAerumAddress() external view returns (address) {
+        return aerum;
+    }
+
+    /**
+    * @notice Returns delegate's name as bytes32
+    */
+    function getNameAsBytes() external view returns (bytes32) {
+        return name;
+    }
 }

@@ -1,12 +1,12 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
-import "../governance/GovernanceReference.sol";
-import "../governance/DelegateReference.sol";
+import "../governance/IGovernance.sol";
+import "../governance/IDelegate.sol";
 
 /**
  * @title VestingWallet
@@ -23,7 +23,7 @@ contract VestingWallet is Ownable {
     event Stake(address indexed delegate, uint256 amount);
     event Unstake(address indexed delegate, uint256 amount);
 
-    GovernanceReference public governance;
+    IGovernance public governance;
     ERC20 public token;
 
     // beneficiary of tokens after they are released
@@ -56,7 +56,7 @@ contract VestingWallet is Ownable {
         require(_cliff <= _duration);
 
         token = ERC20(_token);
-        governance = GovernanceReference(_governance);
+        governance = IGovernance(_governance);
 
         beneficiary = _beneficiary;
         revocable = _revocable;
@@ -77,7 +77,7 @@ contract VestingWallet is Ownable {
      * @notice Modifier to check beneficiary or owner only.
      */
     modifier onlyOwnerOrBeneficiary {
-        require((msg.sender == beneficiary) || (msg.sender == owner));
+        require((msg.sender == beneficiary) || (msg.sender == owner()));
         _;
     }
 
@@ -112,7 +112,7 @@ contract VestingWallet is Ownable {
 
         revoked = true;
 
-        token.safeTransfer(owner, refund);
+        token.safeTransfer(owner(), refund);
 
         emit Revoked();
     }
@@ -124,7 +124,7 @@ contract VestingWallet is Ownable {
         require(governance.isDelegateKnown(_delegate));
         staked = staked.add(_amount);
         token.approve(_delegate, _amount);
-        DelegateReference(_delegate).stake(_amount);
+        IDelegate(_delegate).stake(_amount);
 
         emit Stake(_delegate, _amount);
     }
@@ -135,7 +135,7 @@ contract VestingWallet is Ownable {
     function unstake(address _delegate, uint256 _amount) external onlyOwnerOrBeneficiary {
         require(governance.isDelegateKnown(_delegate));
         staked = staked.sub(_amount);
-        DelegateReference(_delegate).unstake(_amount);
+        IDelegate(_delegate).unstake(_amount);
 
         emit Unstake(_delegate, _amount);
     }
@@ -145,7 +145,7 @@ contract VestingWallet is Ownable {
      */
     function setAerumAddress(address _delegate, address _aerum) external onlyBeneficiary {
         require(governance.isDelegateKnown(_delegate));
-        DelegateReference(_delegate).setAerumAddress(_aerum);
+        IDelegate(_delegate).setAerumAddress(_aerum);
     }
 
     /**

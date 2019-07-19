@@ -19,14 +19,22 @@ let getEventArg = function (tx, event, arg) {
 };
 
 let blockTime = function () {
-  return web3.eth.getBlock('latest').timestamp;
+  return new Promise((resolve, reject) => {
+    web3.eth.getBlock('latest', (error, block) => {
+      if(error) {
+        reject(error);
+      } else {
+        resolve(block.timestamp);
+      }
+    });
+  })
 };
 
 let increaseTime = function (duration) {
   const id = Date.now();
 
   return new Promise((resolve, reject) => {
-    web3.currentProvider.sendAsync({
+    web3.currentProvider.send({
       jsonrpc: '2.0',
       method: 'evm_increaseTime',
       params: [duration],
@@ -35,7 +43,7 @@ let increaseTime = function (duration) {
       if (err) {
         return reject(err);
       }
-      web3.currentProvider.sendAsync({
+      web3.currentProvider.send({
         jsonrpc: '2.0',
         method: 'evm_mine',
         id: id + 1,
@@ -46,15 +54,6 @@ let increaseTime = function (duration) {
   });
 };
 
-let increaseTimeTo = function (target) {
-  let now = blockTime();
-  if (target < now) {
-    throw Error(`Cannot increase current time(${now}) to a moment in the past(${target})`);
-  }
-  let diff = target - now;
-  return increaseTime(diff);
-};
-
 let assertVMError = function (error) {
   if (error.message.search('VM Exception') === -1) {
     console.log(error);
@@ -62,7 +61,7 @@ let assertVMError = function (error) {
   assert.isAbove(error.message.search('VM Exception'), -1, 'Error should have been caused by EVM');
 };
 
-let epoch = function() {
+let epoch = function () {
   return Math.ceil((new Date).getTime() / 1000);
 };
 
@@ -75,14 +74,18 @@ function ensureException(error) {
   assert(isException(error), error.toString());
 }
 
+function asciiToHex(value) {
+  return web3.utils.asciiToHex(value);
+}
+
 module.exports = {
   contractAt,
   getEventArg,
   blockTime,
   increaseTime,
-  increaseTimeTo,
   assertVMError,
   epoch,
+  asciiToHex,
   zeroAddress: '0x0000000000000000000000000000000000000000',
   ensureException: ensureException
 };

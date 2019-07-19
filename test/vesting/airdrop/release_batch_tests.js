@@ -1,4 +1,5 @@
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('airdrop > release batch', (accounts) => {
 
@@ -27,8 +28,8 @@ contract('airdrop > release batch', (accounts) => {
   });
 
   it("should be able to release batch", async () => {
-    const promise1 = 100;
-    const promise2 = 200;
+    const promise1 = new BN(100);
+    const promise2 = new BN(200);
     await airdrop.promiseBatch([beneficiary1, beneficiary2], [promise1, promise2], { from: owner });
 
     const balance1Before = await token.balanceOf(beneficiary1);
@@ -40,8 +41,8 @@ contract('airdrop > release batch', (accounts) => {
 
     const balance1After = await token.balanceOf(beneficiary1);
     const balance2After = await token.balanceOf(beneficiary2);
-    assert.isTrue((await airdrop.balance(beneficiary1)).eq(0));
-    assert.isTrue((await airdrop.balance(beneficiary2)).eq(0));
+    assert.isTrue((await airdrop.balance(beneficiary1)).eq(new BN(0)));
+    assert.isTrue((await airdrop.balance(beneficiary2)).eq(new BN(0)));
 
     assert.isTrue(balance1After.eq(balance1Before.add(promise1)));
     assert.isTrue(balance2After.eq(balance2Before.add(promise2)));
@@ -55,8 +56,8 @@ contract('airdrop > release batch', (accounts) => {
   });
 
   it("should be able to release all", async () => {
-    const promise1 = 100;
-    const promise2 = 200;
+    const promise1 = new BN(100);
+    const promise2 = new BN(200);
     await airdrop.promiseBatch([beneficiary1, beneficiary2], [promise1, promise2], { from: owner });
 
     const balance1Before = await token.balanceOf(beneficiary1);
@@ -68,16 +69,16 @@ contract('airdrop > release batch', (accounts) => {
 
     const balance1After = await token.balanceOf(beneficiary1);
     const balance2After = await token.balanceOf(beneficiary2);
-    assert.isTrue((await airdrop.balance(beneficiary1)).eq(0));
-    assert.isTrue((await airdrop.balance(beneficiary2)).eq(0));
+    assert.isTrue((await airdrop.balance(beneficiary1)).eq(new BN(0)));
+    assert.isTrue((await airdrop.balance(beneficiary2)).eq(new BN(0)));
 
     assert.isTrue(balance1After.eq(balance1Before.add(promise1)));
     assert.isTrue(balance2After.eq(balance2Before.add(promise2)));
   });
 
   it("should be able to release batch (paged)", async () => {
-    const promise1 = 100;
-    const promise2 = 200;
+    const promise1 = new BN(100);
+    const promise2 = new BN(200);
     await airdrop.promiseBatch([beneficiary1, beneficiary2], [promise1, promise2], { from: owner });
 
     const balance1Before = await token.balanceOf(beneficiary1);
@@ -91,7 +92,7 @@ contract('airdrop > release batch', (accounts) => {
     const balance1After = await token.balanceOf(beneficiary1);
     const balance2After = await token.balanceOf(beneficiary2);
     assert.isTrue((await airdrop.balance(beneficiary1)).eq(promise1));
-    assert.isTrue((await airdrop.balance(beneficiary2)).eq(0));
+    assert.isTrue((await airdrop.balance(beneficiary2)).eq(new BN(0)));
 
     assert.isTrue(balance1After.eq(balance1Before));
     assert.isTrue(balance2After.eq(balance2Before.add(promise2)));

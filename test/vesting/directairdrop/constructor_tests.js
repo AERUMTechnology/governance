@@ -27,7 +27,7 @@ contract('direct airdrop > constructor', (accounts) => {
 
   it("contract token should not be empty", async () => {
     try {
-      await DirectAirDrop.new(0);
+      await DirectAirDrop.new('0x0000000000000000000000000000000000000000');
       assert.fail("contract token address is empty");
     } catch (e) {
       utils.assertVMError(e);

@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('multi vesting wallet > return remaining', (accounts) => {
 
@@ -43,7 +44,7 @@ contract('multi vesting wallet > return remaining', (accounts) => {
     await vesting.returnRemaining({ from: owner });
     assert.equal(await vesting.remainingBalance(), 0);
     const balance = await token.balanceOf(owner);
-    assert.isTrue(balance.eq(initialBalance.plus(700)));
+    assert.isTrue(balance.eq(initialBalance.add(new BN(700))));
   });
 
   it("should not be able to return remaining twice", async () => {
@@ -56,8 +57,7 @@ contract('multi vesting wallet > return remaining', (accounts) => {
   });
 
   it("should return 0 remaining balance in case promised more tokens than contract contains", async () => {
-    await vesting.promise(beneficiary1, 200, { from: owner });
-    assert.equal(await vesting.remainingBalance(), 0);
+    await vesting.promiseSingle(beneficiary1, 200, { from: owner });
+    assert.isTrue((await vesting.remainingBalance()).eq(new BN(0)));
   });
-
 });

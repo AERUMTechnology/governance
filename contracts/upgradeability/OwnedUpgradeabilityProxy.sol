@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "zos-lib/contracts/upgradeability/AdminUpgradeabilityProxy.sol";
 
@@ -16,8 +16,9 @@ contract OwnedUpgradeabilityProxy is AdminUpgradeabilityProxy {
      * Contract constructor.
      * It sets the `msg.sender` as the proxy administrator.
      * @param _implementation address of the initial implementation.
+     * @param _admin upgradeability admin.
      */
-    constructor(address _implementation) AdminUpgradeabilityProxy(_implementation, "") public {
+    constructor(address _implementation, address _admin) AdminUpgradeabilityProxy(_implementation, _admin, "") public {
     }
 
     /**

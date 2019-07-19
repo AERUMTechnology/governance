@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('airdrop > get methods', (accounts) => {
 
@@ -28,12 +29,12 @@ contract('airdrop > get methods', (accounts) => {
 
   it("should return total promised", async () => {
     const promised = await airdrop.totalPromised();
-    assert.isTrue(promised.eq(300));
+    assert.isTrue(promised.eq(new BN(300)));
   });
-  
+
   it("should be able to return not released beneficiaries", async () => {
     let count = await airdrop.getNotReleasedBeneficiariesCount();
-    assert.isTrue(count.eq(2));
+    assert.isTrue(count.eq(new BN(2)));
 
     let beneficiaries = await airdrop.getNotReleasedBeneficiaries();
     assert.isTrue(beneficiaries.length === 2);
@@ -41,10 +42,10 @@ contract('airdrop > get methods', (accounts) => {
     assert.isTrue(beneficiaries[1] === beneficiary2);
 
     // NOTE: Decrease to 1
-    await airdrop.promise(beneficiary1, 0, { from: owner });
+    await airdrop.promiseSingle(beneficiary1, 0, { from: owner });
 
     count = await airdrop.getNotReleasedBeneficiariesCount();
-    assert.isTrue(count.eq(1));
+    assert.isTrue(count.eq(new BN(1)));
 
     beneficiaries = await airdrop.getNotReleasedBeneficiaries();
     assert.isTrue(beneficiaries.length === 1);
@@ -54,7 +55,7 @@ contract('airdrop > get methods', (accounts) => {
     await airdrop.releaseAll({ from: owner });
 
     count = await airdrop.getNotReleasedBeneficiariesCount();
-    assert.isTrue(count.eq(0));
+    assert.isTrue(count.eq(new BN(0)));
 
     beneficiaries = await airdrop.getNotReleasedBeneficiaries();
     assert.isTrue(beneficiaries.length === 0);

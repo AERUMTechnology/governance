@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('multi vesting wallet > release batch', (accounts) => {
 
@@ -41,8 +42,8 @@ contract('multi vesting wallet > release batch', (accounts) => {
     const balance2Before = await token.balanceOf(beneficiary2);
     const releasable1Before = await vesting.releasableAmount(beneficiary1);
     const releasable2Before = await vesting.releasableAmount(beneficiary2);
-    assert.isTrue(releasable1Before.greaterThan(0));
-    assert.isTrue(releasable2Before.greaterThan(0));
+    assert.isTrue(releasable1Before.gt(new BN(0)));
+    assert.isTrue(releasable2Before.gt(new BN(0)));
 
     await vesting.releaseBatch([beneficiary1, beneficiary2], { from: simpleUser });
 
@@ -50,11 +51,11 @@ contract('multi vesting wallet > release batch', (accounts) => {
     const balance2After = await token.balanceOf(beneficiary2);
     const releasable1After = await vesting.releasableAmount(beneficiary1);
     const releasable2After = await vesting.releasableAmount(beneficiary2);
-    assert.isTrue(releasable1Before.greaterThan(releasable1After));
-    assert.isTrue(releasable2Before.greaterThan(releasable2After));
+    assert.isTrue(releasable1Before.gt(releasable1After));
+    assert.isTrue(releasable2Before.gt(releasable2After));
 
-    assert.isTrue(balance1After.greaterThan(balance1Before));
-    assert.isTrue(balance2After.greaterThan(balance2Before));
+    assert.isTrue(balance1After.gt(balance1Before));
+    assert.isTrue(balance2After.gt(balance2Before));
   });
 
   it("should not release to unknown beneficiaries", async () => {
@@ -71,8 +72,8 @@ contract('multi vesting wallet > release batch', (accounts) => {
     const balance2Before = await token.balanceOf(beneficiary2);
     const releasable1Before = await vesting.releasableAmount(beneficiary1);
     const releasable2Before = await vesting.releasableAmount(beneficiary2);
-    assert.isTrue(releasable1Before.greaterThan(0));
-    assert.isTrue(releasable2Before.greaterThan(0));
+    assert.isTrue(releasable1Before.gt(new BN(0)));
+    assert.isTrue(releasable2Before.gt(new BN(0)));
 
     await vesting.releaseAll({ from: simpleUser });
 
@@ -80,11 +81,11 @@ contract('multi vesting wallet > release batch', (accounts) => {
     const balance2After = await token.balanceOf(beneficiary2);
     const releasable1After = await vesting.releasableAmount(beneficiary1);
     const releasable2After = await vesting.releasableAmount(beneficiary2);
-    assert.isTrue(releasable1Before.greaterThan(releasable1After));
-    assert.isTrue(releasable2Before.greaterThan(releasable2After));
+    assert.isTrue(releasable1Before.gt(releasable1After));
+    assert.isTrue(releasable2Before.gt(releasable2After));
 
-    assert.isTrue(balance1After.greaterThan(balance1Before));
-    assert.isTrue(balance2After.greaterThan(balance2Before));
+    assert.isTrue(balance1After.gt(balance1Before));
+    assert.isTrue(balance2After.gt(balance2Before));
   });
 
   it("should be able to release batch (paged)", async () => {
@@ -94,8 +95,8 @@ contract('multi vesting wallet > release batch', (accounts) => {
     const balance2Before = await token.balanceOf(beneficiary2);
     const releasable1Before = await vesting.releasableAmount(beneficiary1);
     const releasable2Before = await vesting.releasableAmount(beneficiary2);
-    assert.isTrue(releasable1Before.greaterThan(0));
-    assert.isTrue(releasable2Before.greaterThan(0));
+    assert.isTrue(releasable1Before.gt(new BN(0)));
+    assert.isTrue(releasable2Before.gt(new BN(0)));
 
     // NOTE: Start from 1 & take 10. So only beneficiary 2 should be affected
     await vesting.releaseBatchPaged(1, 10, { from: simpleUser });
@@ -106,11 +107,11 @@ contract('multi vesting wallet > release batch', (accounts) => {
     const balance2After = await token.balanceOf(beneficiary2);
     const releasable1After = await vesting.releasableAmount(beneficiary1);
     const releasable2After = await vesting.releasableAmount(beneficiary2);
-    assert.isTrue(releasable1Before.lessThan(releasable1After));
-    assert.isTrue(releasable2Before.greaterThan(releasable2After));
+    assert.isTrue(releasable1Before.lt(releasable1After));
+    assert.isTrue(releasable2Before.gt(releasable2After));
 
     assert.isTrue(balance1After.eq(balance1Before));
-    assert.isTrue(balance2After.greaterThan(balance2Before));
+    assert.isTrue(balance2After.gt(balance2Before));
   });
 
 });

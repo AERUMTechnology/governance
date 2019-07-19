@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
@@ -34,7 +34,7 @@ contract DirectAirDrop is Ownable {
      */
     function returnTokens() external onlyOwner {
         uint256 remaining = token.balanceOf(address(this));
-        token.safeTransfer(owner, remaining);
+        token.safeTransfer(owner(), remaining);
 
         emit TokensReturn(remaining);
     }
@@ -62,7 +62,7 @@ contract DirectAirDrop is Ownable {
      * @param _addresses Accounts which will get tokens
      * @param _amounts Promise amounts
      */
-    function dropBatch(address[] _addresses, uint256[] _amounts) external onlyOwner {
+    function dropBatch(address[] calldata _addresses, uint256[] calldata _amounts) external onlyOwner {
         require(_addresses.length == _amounts.length);
 
         for (uint256 index = 0; index < _addresses.length; index++) {

@@ -1,11 +1,11 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 
-import "../governance/DelegateReference.sol";
+import "../governance/IDelegate.sol";
 
 /**
  * @title TokenVesting
@@ -21,7 +21,7 @@ contract MultiVestingWallet is Ownable {
     event Revoked(address indexed account);
     event UnRevoked(address indexed account);
     event ReturnTokens(uint256 amount);
-    event Promise(address indexed account, uint256 amount);
+    event Promised(address indexed account, uint256 amount);
     event Stake(address indexed delegate, uint256 amount);
     event Unstake(address indexed delegate, uint256 amount);
 
@@ -79,7 +79,7 @@ contract MultiVestingWallet is Ownable {
      * @notice Transfers vested tokens to list of beneficiary.
      * @param _addresses List of beneficiaries
      */
-    function releaseBatch(address[] _addresses) external {
+    function releaseBatch(address[] calldata _addresses) external {
         for (uint256 index = 0; index < _addresses.length; index++) {
             _release(_addresses[index]);
         }
@@ -142,7 +142,7 @@ contract MultiVestingWallet is Ownable {
      * @notice Allows the owner to revoke the vesting for few addresses.
      * @param _addresses Accounts which will be unrevoked
      */
-    function revokeBatch(address[] _addresses) external onlyOwner {
+    function revokeBatch(address[] calldata _addresses) external onlyOwner {
         for (uint256 index = 0; index < _addresses.length; index++) {
             revoke(_addresses[index]);
         }
@@ -165,7 +165,7 @@ contract MultiVestingWallet is Ownable {
      * @notice Allows the owner to unrevoke the vesting for few addresses.
      * @param _addresses Accounts which will be unrevoked
      */
-    function unrevokeBatch(address[] _addresses) external onlyOwner {
+    function unrevokeBatch(address[] calldata _addresses) external onlyOwner {
         for (uint256 index = 0; index < _addresses.length; index++) {
             unRevoke(_addresses[index]);
         }
@@ -251,7 +251,7 @@ contract MultiVestingWallet is Ownable {
         uint256 remaining = remainingBalance();
         require(remaining > 0);
 
-        token.safeTransfer(owner, remaining);
+        token.safeTransfer(owner(), remaining);
 
         emit ReturnTokens(remaining);
     }
@@ -261,7 +261,7 @@ contract MultiVestingWallet is Ownable {
      */
     function returnAll() external onlyOwner {
         uint256 remaining = token.balanceOf(address(this));
-        token.safeTransfer(owner, remaining);
+        token.safeTransfer(owner(), remaining);
 
         emit ReturnTokens(remaining);
     }
@@ -271,7 +271,7 @@ contract MultiVestingWallet is Ownable {
      * @param _beneficiary Account which gets vested tokens
      * @param _amount Amount of tokens vested
      */
-    function promise(address _beneficiary, uint256 _amount) public onlyOwner {
+    function promiseSingle(address _beneficiary, uint256 _amount) public onlyOwner {
         if (!known[_beneficiary]) {
             known[_beneficiary] = true;
             accounts.push(_beneficiary);
@@ -279,7 +279,7 @@ contract MultiVestingWallet is Ownable {
 
         promised[_beneficiary] = _amount;
 
-        emit Promise(_beneficiary, _amount);
+        emit Promised(_beneficiary, _amount);
     }
 
     /**
@@ -287,18 +287,18 @@ contract MultiVestingWallet is Ownable {
      * @param _addresses Accounts which will get promises
      * @param _amounts Promise amounts
      */
-    function promiseBatch(address[] _addresses, uint256[] _amounts) external onlyOwner {
+    function promiseBatch(address[] calldata _addresses, uint256[] calldata _amounts) external onlyOwner {
         require(_addresses.length == _amounts.length);
 
         for (uint256 index = 0; index < _addresses.length; index++) {
-            promise(_addresses[index], _amounts[index]);
+            promiseSingle(_addresses[index], _amounts[index]);
         }
     }
 
     /**
      * @notice Returns full list if beneficiaries
      */
-    function getBeneficiaries() external view returns (address[]) {
+    function getBeneficiaries() external view returns (address[] memory) {
         return accounts;
     }
 
@@ -315,7 +315,7 @@ contract MultiVestingWallet is Ownable {
     function stake(address _delegate, uint256 _amount) external onlyOwner {
         staked = staked.add(_amount);
         token.approve(_delegate, _amount);
-        DelegateReference(_delegate).stake(_amount);
+        IDelegate(_delegate).stake(_amount);
 
         emit Stake(_delegate, _amount);
     }
@@ -325,7 +325,7 @@ contract MultiVestingWallet is Ownable {
      */
     function unstake(address _delegate, uint256 _amount) external onlyOwner {
         staked = staked.sub(_amount);
-        DelegateReference(_delegate).unstake(_amount);
+        IDelegate(_delegate).unstake(_amount);
 
         emit Unstake(_delegate, _amount);
     }

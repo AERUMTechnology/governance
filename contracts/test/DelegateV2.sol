@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "../governance/Delegate.sol";
 
@@ -13,14 +13,14 @@ contract DelegateV2 is Delegate {
     /**
     * @dev Returns delegate name as string
     */
-    function getName() public view returns (string) {
+    function getName() public view returns (string memory) {
         return description;
     }
 
     /**
     * @dev Sets delegate name as string
     */
-    function setName(string _name) external onlyOwner {
+    function setName(string calldata _name) external onlyOwner {
         description = _name;
     }
 

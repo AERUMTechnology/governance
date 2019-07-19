@@ -43,29 +43,25 @@ contract('governance > blacklist voting', (accounts) => {
     delegate2 = await fixture.createDelegate("Delegate2", delegate2Owner);
     delegate3 = await fixture.createDelegate("Delegate3", delegate3Owner);
 
-    await governance.approveDelegate(delegate1.address, { from: owner });
-    await governance.approveDelegate(delegate2.address, { from: owner });
-    await governance.approveDelegate(delegate3.address, { from: owner });
-
     await token.transfer(staker1, 1000, { from: owner });
     await token.transfer(staker2, 1000, { from: owner });
     await token.transfer(staker3, 1000, { from: owner });
 
-    await token.approve(delegate1.address, 100, { from: staker1 });
+    await token.approve(delegate1.address, 250, { from: staker1 });
     await token.approve(delegate2.address, 100, { from: staker2 });
     await token.approve(delegate3.address, 100, { from: staker3 });
 
-    await delegate1.stake(100, { from: staker1 });
+    await delegate1.stake(250, { from: staker1 });
     await delegate2.stake(100, { from: staker2 });
     await delegate3.stake(100, { from: staker3 });
 
-    await delegate1.lockStake(100, { from: delegate1Owner });
-    await delegate2.lockStake(100, { from: delegate2Owner });
-    await delegate3.lockStake(100, { from: delegate3Owner });
+    governance.updateBlacklist(delegate1.address, true);
+    governance.updateBlacklist(delegate2.address, true);
+    governance.updateBlacklist(delegate3.address, true);
   });
 
   it("should not be able to propose in case you are not valid delegate", async () => {
-    const delegates = await governance.getValidDelegates(utils.blockTime());
+    const delegates = await governance.getValidDelegates(await utils.blockTime());
     assert.equal(delegates[0].length, 0);
 
     try {
@@ -75,10 +71,10 @@ contract('governance > blacklist voting', (accounts) => {
       utils.assertVMError(e);
     }
   });
-
+  
   it("should not be able to propose in case of not owner", async () => {
-    await delegate1.keepAlive({ from: delegate1Owner });
-    const delegates = await governance.getValidDelegates(utils.blockTime());
+    governance.updateBlacklist(delegate1.address, false);
+    const delegates = await governance.getValidDelegates(await utils.blockTime());
     assert.equal(delegates[0].length, 1);
 
     try {
@@ -93,7 +89,7 @@ contract('governance > blacklist voting', (accounts) => {
     await delegate1.submitBlacklistProposal(proposalId, delegate3.address, true, { from: delegate1Owner });
     const voting = await governance.getVotingDetails(proposalId);
     assert.equal(voting[0], proposalId);
-    assert.equal(voting[3], 0 /* category */);
+    assert.equal(voting[3], 0);
     assert.equal(voting[5].length, 0);
     assert.equal(voting[6].length, 0);
   });
@@ -117,11 +113,11 @@ contract('governance > blacklist voting', (accounts) => {
   });
 
   it("should be able to vote", async () => {
-    await delegate2.keepAlive({ from: delegate2Owner });
-    await delegate3.keepAlive({ from: delegate3Owner });
+    await governance.updateBlacklist(delegate2.address, false);
+    await governance.updateBlacklist(delegate3.address, false);
 
     await delegate1.vote(proposalId, true, { from: delegate1Owner });
-    await delegate2.vote(proposalId, true, { from: delegate2Owner });
+    await delegate2.vote(proposalId, false, { from: delegate2Owner });
     await delegate3.vote(proposalId, false, { from: delegate3Owner });
 
     const voting = await governance.getVotingDetails(proposalId);
@@ -133,7 +129,7 @@ contract('governance > blacklist voting', (accounts) => {
     const votings = voting[6];
     assert.equal(votings.length, 3);
     assert.equal(votings[0], true);
-    assert.equal(votings[1], true);
+    assert.equal(votings[1], false);
     assert.equal(votings[2], false);
   });
 
@@ -158,10 +154,6 @@ contract('governance > blacklist voting', (accounts) => {
 
   it("should not be able to vote after voting ended", async () => {
     await utils.increaseTime(60 * 60 * 24 * 7);
-    await delegate1.keepAlive({ from: delegate1Owner });
-    await delegate2.keepAlive({ from: delegate2Owner });
-    await delegate3.keepAlive({ from: delegate3Owner });
-
     try {
       await delegate1.vote(proposalId, true, { from: delegate1Owner });
       assert.fail("was able to vote after voting ended");
@@ -171,9 +163,8 @@ contract('governance > blacklist voting', (accounts) => {
   });
 
   it("should be able to finalize voting", async () => {
-    assert.isTrue(await governance.isDelegateValid(delegate3.address, utils.blockTime()));
+    assert.isTrue(await governance.isDelegateValid(delegate3.address, await utils.blockTime()));
     await delegate1.finalizeVoting(proposalId, { from: simpleUser });
-    assert.isFalse(await governance.isDelegateValid(delegate3.address, utils.blockTime()));
+    assert.isFalse(await governance.isDelegateValid(delegate3.address, await utils.blockTime()));
   });
-
 });

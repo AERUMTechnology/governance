@@ -1,9 +1,12 @@
 const utils = require("../utils");
+const BN = web3.utils.BN;
 
 const Governance = artifacts.require("Governance");
 const AerumToken = artifacts.require("AerumToken");
 const Delegate = artifacts.require("Delegate");
+const DelegateFactory = artifacts.require("DelegateFactory");
 
+const delegateBond = (new BN(1000000)).mul((new BN(10)).pow(new BN(18)));
 let owner;
 let simpleUser;
 let staker1;
@@ -17,6 +20,7 @@ let delegateApprover;
 
 let token;
 let governance;
+let factory;
 
 async function setUp(accounts) {
   owner = accounts[0];
@@ -24,25 +28,26 @@ async function setUp(accounts) {
   staker1 = accounts[2];
   staker2 = accounts[3];
   staker3 = accounts[4];
-  notStaker = accounts[5];
+  staker4 = accounts[5];
+  notStaker = accounts[6];
   delegate1Owner = accounts[6];
   delegate2Owner = accounts[7];
   delegate3Owner = accounts[8];
   delegateApprover = accounts[9];
 
   token = await AerumToken.new();
-
+  factory = await DelegateFactory.new(token.address);
   governance = await Governance.new();
-  await governance.init(owner, token.address, 100, 24 * 60 * 60, 10, 100);
+  await governance.init(owner, token.address, factory.address, 10, delegateBond);
 
-  await token.transfer(delegate1Owner, 1000);
-  await token.transfer(delegate2Owner, 1000);
-  await token.transfer(delegate3Owner, 1000);
+  await token.transfer(delegate1Owner, delegateBond.mul((new BN(10))));
+  await token.transfer(delegate2Owner, delegateBond.mul((new BN(10))));
+  await token.transfer(delegate3Owner, delegateBond.mul((new BN(10))));
 }
 
 async function createDelegate(name, delegateOwner) {
-  await token.approve(governance.address, 100, { from: delegateOwner });
-  const tx = await governance.createDelegate(name, delegateOwner, { from: delegateOwner });
+  await token.approve(governance.address, delegateBond, { from: delegateOwner });
+  const tx = await governance.createDelegate(utils.asciiToHex(name), delegateOwner, { from: delegateOwner });
   const addr = utils.getEventArg(tx, "DelegateCreated", "delegate");
   return await utils.contractAt(Delegate, addr);
 }
@@ -56,6 +61,7 @@ module.exports = {
       staker1,
       staker2,
       staker3,
+      staker4,
       simpleUser,
       notStaker,
       delegate1Owner,
@@ -67,7 +73,8 @@ module.exports = {
   contracts: function accounts() {
     return {
       token,
-      governance
+      governance,
+      factory
     }
   },
   variables: function accounts() {

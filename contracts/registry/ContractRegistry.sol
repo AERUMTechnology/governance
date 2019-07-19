@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
@@ -41,7 +41,7 @@ contract ContractRegistry is Ownable {
     function getContractByName(bytes32 _name) external view returns (address, bytes32, bool) {
         ContractRecord memory record = contracts[_name];
         if(record.addr == address(0) || !record.enabled) {
-            return;
+            return(address(0), bytes32(0), false);
         }
         return (record.addr, record.name, record.enabled);
     }
@@ -49,7 +49,7 @@ contract ContractRegistry is Ownable {
     /**
      * @dev Returns contract's names
      */
-    function getContractNames() external view returns (bytes32[]) {
+    function getContractNames() external view returns (bytes32[] memory) {
         uint count = 0;
         for(uint i = 0; i < contractsName.length; i++) {
             if(contracts[contractsName[i]].enabled) {
@@ -58,7 +58,7 @@ contract ContractRegistry is Ownable {
         }
         bytes32[] memory result = new bytes32[](count);
         uint j = 0;
-        for(i = 0; i < contractsName.length; i++) {
+        for(uint i = 0; i < contractsName.length; i++) {
             if(contracts[contractsName[i]].enabled) {
                 result[j] = contractsName[i];
                 j++;
@@ -130,7 +130,7 @@ contract ContractRegistry is Ownable {
         contractsName = removeByValue(contractsName, _oldName);
     }
 
-    function removeByValue(bytes32[] memory _array, bytes32 _name) private pure returns(bytes32[]) {
+    function removeByValue(bytes32[] memory _array, bytes32 _name) private pure returns(bytes32[] memory) {
         uint i = 0;
         uint j = 0;
         bytes32[] memory outArray = new bytes32[](_array.length - 1);

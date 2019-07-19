@@ -6,7 +6,7 @@ contract('contract registry', function (accounts) {
 
     const owner = accounts[0];
     const user = accounts[1];
-    const name = 'test_contract';
+    const name = utils.asciiToHex('test_contract');
     const nameByte32 = '0x746573745f636f6e747261637400000000000000000000000000000000000000';
     const newNameByte32 = '0x746573745f636f6e74726163745f310000000000000000000000000000000000';
 
@@ -23,7 +23,7 @@ contract('contract registry', function (accounts) {
     };
 
     beforeEach(async () => {
-        contractRegistry = await ContractRegistry.new('0x0009');
+        contractRegistry = await ContractRegistry.new('0x0009000000000000000000000000000000000000');
     });
 
     it('should allow contract adding', async () => {

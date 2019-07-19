@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('direct airdrop > drop', (accounts) => {
 
@@ -73,7 +74,7 @@ contract('direct airdrop > drop', (accounts) => {
     assert.equal(await airdrop.dropped(beneficiary1), drop);
     assert.equal(await airdrop.totalDropped(), drop);
     const balanceAfter = await token.balanceOf(beneficiary1);
-    assert.isTrue(balanceAfter.eq(balanceBefore.plus(drop)));
+    assert.isTrue(balanceAfter.eq(balanceBefore.add(new BN(drop))));
   });
 
   it("should be able to do few drops at the same time", async () => {
@@ -88,8 +89,8 @@ contract('direct airdrop > drop', (accounts) => {
 
     const balanceAfter1 = await token.balanceOf(beneficiary1);
     const balanceAfter2 = await token.balanceOf(beneficiary2);
-    assert.isTrue(balanceAfter1.eq(balanceBefore1.plus(100)));
-    assert.isTrue(balanceAfter2.eq(balanceBefore2.plus(200)));
+    assert.isTrue(balanceAfter1.eq(balanceBefore1.add(new BN(100))));
+    assert.isTrue(balanceAfter2.eq(balanceBefore2.add(new BN(200))));
   });
 
   it("should not be able to withdraw tokens by not owner", async () => {
@@ -112,7 +113,7 @@ contract('direct airdrop > drop', (accounts) => {
     assert.equal(await airdrop.tokensBalance(), 0);
     assert.equal(await token.balanceOf(airdrop.address), 0);
     const balanceAfter = await  token.balanceOf(owner);
-    assert.isTrue(balanceAfter.eq(balanceBefore.plus(remaining)));
+    assert.isTrue(balanceAfter.eq(balanceBefore.add(new BN(remaining))));
   });
 
 });

@@ -48,7 +48,7 @@ contract('vesting wallet > staking', (accounts) => {
 
   it("should be able to stake using beneficiary account", async () => {
     await vesting.stake(delegate.address, 20, { from: beneficiary });
-    assert.equal(await delegate.stakeOf(vesting.address), 20);
+    assert.equal(await delegate.stakeOf(vesting.address, await utils.blockTime()), 20);
   });
 
   it("should not be able to set aerum address if not beneficiary", async () => {
@@ -95,10 +95,10 @@ contract('vesting wallet > staking', (accounts) => {
 
   it("should be able to unstake using beneficiary account", async () => {
     await vesting.unstake(delegate.address, 10, { from: beneficiary });
-    assert.equal(await delegate.stakeOf(vesting.address), 10);
+    assert.equal(await delegate.stakeOf(vesting.address, await utils.blockTime()), 10);
 
     await vesting.unstake(delegate.address, 10, { from: beneficiary });
-    assert.equal(await delegate.stakeOf(vesting.address), 0);
+    assert.equal(await delegate.stakeOf(vesting.address, await utils.blockTime()), 0);
   });
 
   it("should not be able to unstake more than staked", async () => {

@@ -39,7 +39,7 @@ contract('vesting wallet > constructor', (accounts) => {
 
   it("contract token address should not be empty", async () => {
     try {
-      await VestingWallet.new(0, governance.address, beneficiary, 100, 100, 100, false);
+      await VestingWallet.new('0x0000000000000000000000000000000000000000', governance.address, beneficiary, 100, 100, 100, false);
       assert.fail("contract token is empty");
     } catch (e) {
       utils.assertVMError(e);
@@ -48,7 +48,7 @@ contract('vesting wallet > constructor', (accounts) => {
 
   it("contract governance should not be empty", async () => {
     try {
-      await VestingWallet.new(token.address, 0, beneficiary, 100, 100, 100, false);
+      await VestingWallet.new(token.address, '0x0000000000000000000000000000000000000000', beneficiary, 100, 100, 100, false);
       assert.fail("contract governance is empty");
     } catch (e) {
       utils.assertVMError(e);
@@ -57,7 +57,7 @@ contract('vesting wallet > constructor', (accounts) => {
 
   it("contract beneficiary should not be empty", async () => {
     try {
-      await VestingWallet.new(token.address, governance.address, 0, 100, 100, 100, false);
+      await VestingWallet.new(token.address, governance.address, '0x0000000000000000000000000000000000000000', 100, 100, 100, false);
       assert.fail("contract beneficiary is empty");
     } catch (e) {
       utils.assertVMError(e);

@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('multi vesting wallet > release', (accounts) => {
 
@@ -46,16 +47,16 @@ contract('multi vesting wallet > release', (accounts) => {
     await utils.increaseTime(20);
 
     const releasable = await vesting.releasableAmount(beneficiary1);
-    assert.isTrue(releasable.greaterThan(0));
+    assert.isTrue(releasable.gt(new BN(0)));
 
-    const blockTime = utils.blockTime();
+    const blockTime = await utils.blockTime();
     const timeFromVestingStart = blockTime - start;
     const vestingCompletionRate = timeFromVestingStart / duration;
     assert.equal(releasable.toNumber(), vestingCompletionRate * 100, 'Actual: ' + releasable.toNumber());
 
     await utils.increaseTime(5);
     const secondReleasable = await vesting.releasableAmount(beneficiary1);
-    assert.isTrue(secondReleasable.greaterThan(releasable));
+    assert.isTrue(secondReleasable.gt(releasable));
   });
 
   it("should be able to withdraw something after cliff period", async () => {
@@ -63,10 +64,10 @@ contract('multi vesting wallet > release', (accounts) => {
 
     assert.equal(await token.balanceOf(beneficiary1), 0);
     await vesting.release({ from: beneficiary1 });
-    assert.isTrue((await token.balanceOf(beneficiary1)).greaterThan(0));
+    assert.isTrue((await token.balanceOf(beneficiary1)).gt(new BN(0)));
 
     const releasableAfterRelease = await vesting.releasableAmount(beneficiary1);
-    assert.isTrue(releasableAfterRelease.lessThan(releasableBeforeRelease));
+    assert.isTrue(releasableAfterRelease.lt(releasableBeforeRelease));
   });
 
   it("should not be able to release tokens by not beneficiary", async () => {

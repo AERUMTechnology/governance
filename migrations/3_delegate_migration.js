@@ -22,7 +22,6 @@ module.exports = function (deployer, network) {
     const token = new AerumToken(AerumToken.address);
     const governance = new Governance(OwnedUpgradeabilityProxy.address);
     const delegateBond = await governance.delegateBond();
-    const minStake = await governance.getMinBalance(utils.epoch());
 
     const numberOfDelegates = delegateAerumAddresses.length;
     for (let index = 0; index < numberOfDelegates; index++) {
@@ -34,19 +33,6 @@ module.exports = function (deployer, network) {
       const addr = utils.getEventArg(tx, "DelegateCreated", "delegate");
       const delegate = await utils.contractAt(Delegate, addr);
       console.log(`Delegate deployed: ${name}. Address: ${addr}`);
-
-      await governance.approveDelegate(delegate.address);
-      console.log(`Delegate approved: ${name}`);
-
-      await token.approve(delegate.address, minStake);
-      await delegate.stake(minStake);
-      console.log(`Delegate staked: ${name}`);
-
-      await delegate.lockStake(minStake);
-      console.log(`Stake locked for delegate: ${name}`);
-
-      await delegate.keepAlive();
-      console.log(`Keeps alive sent for delegate: ${name}`);
     }
   });
 };

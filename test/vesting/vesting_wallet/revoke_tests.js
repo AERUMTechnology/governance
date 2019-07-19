@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 const VestingWallet = artifacts.require("VestingWallet");
 
@@ -70,8 +71,8 @@ contract('vesting wallet > revoke', (accounts) => {
     await vesting.revoke({ from: owner });
     assert.equal(await vesting.revoked(), true);
     const ownerAfterRevoke = await token.balanceOf(owner);
-    assert.isTrue(ownerAfterRevoke.greaterThan(ownerBeforeRevoke));
-    revokeTime = utils.blockTime();
+    assert.isTrue(ownerAfterRevoke.gt(ownerBeforeRevoke));
+    revokeTime = await utils.blockTime();
   });
 
   it("should not be able to revoke twice", async () => {
@@ -90,22 +91,22 @@ contract('vesting wallet > revoke', (accounts) => {
     const releasableAmount = await vesting.releasableAmount();
     const cliffTimeFromVestingStart = revokeTime - start;
     const vestingCompletionRateOnCliff = cliffTimeFromVestingStart / duration;
-    assert.equal(releasableAmount, vestingCompletionRateOnCliff * tokensVested);
+    assert.isTrue(releasableAmount.eq(new BN(vestingCompletionRateOnCliff * tokensVested)));
   });
 
   it("should be able to release after revoke", async () => {
     await vesting.release({ from: beneficiary });
     const tokensBalance = await token.balanceOf(beneficiary);
-    assert.isTrue(tokensBalance.greaterThan(tokensInitBalance));
+    assert.isTrue(tokensBalance.gt(tokensInitBalance));
   });
 
   it("should not be able to revoke if more tokens staked than releasable", async () => {
     // NOTE: Create new vesting for next tests
-    vesting = await VestingWallet.new(token.address, governance.address, beneficiary, utils.blockTime() + 10, 50, 100, true);
+    vesting = await VestingWallet.new(token.address, governance.address, beneficiary, (await utils.blockTime()) + 10, 50, 100, true);
     await token.transfer(vesting.address, tokensVested);
 
     await vesting.stake(delegate.address, tokensVested, { from: beneficiary });
-    assert.equal(await delegate.stakeOf(vesting.address), tokensVested);
+    assert.equal(await delegate.stakeOf(vesting.address, await utils.blockTime()), tokensVested);
 
     try {
       await vesting.revoke({ from: owner });
@@ -120,11 +121,11 @@ contract('vesting wallet > revoke', (accounts) => {
     // NOTE: We need unstake before we revoke
     await vesting.unstake(delegate.address, tokensVested, { from: owner });
     await vesting.revoke({ from: owner });
-    assert.equal(await delegate.stakeOf(vesting.address), 0);
+    assert.equal(await delegate.stakeOf(vesting.address, await utils.blockTime()), 0);
     assert.equal(await vesting.releasableAmount(), 0);
 
     const ownerBalanceAfterRevoke = await token.balanceOf(owner);
-    const expectedOwnerBalanceAfterRevoke = ownerBalanceBeforeRevoke.plus(tokensVested);
+    const expectedOwnerBalanceAfterRevoke = ownerBalanceBeforeRevoke.add(new BN(tokensVested));
     assert.isTrue(expectedOwnerBalanceAfterRevoke.eq(ownerBalanceAfterRevoke));
   });
 

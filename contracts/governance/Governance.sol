@@ -1,40 +1,48 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "openzeppelin-solidity/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-eth/contracts/ownership/Ownable.sol";
-import "openzeppelin-eth/contracts/math/SafeMath.sol";
-import "zos-lib/contracts/Initializable.sol";
 
+import "./IDelegate.sol";
+import "./IGovernance.sol";
+import "./IDelegateFactory.sol";
 import "../library/OperationStore.sol";
 import "../upgradeability/OwnedUpgradeabilityProxy.sol";
-import "./Delegate.sol";
-import "./GovernanceReference.sol";
+import "../upgradeability/ParameterizedInitializable.sol";
 
 /**
  * @title Ethereum-based governance contract
  */
-contract Governance is GovernanceReference, Initializable, Ownable {
+contract Governance is IGovernance, ParameterizedInitializable, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for ERC20;
     using OperationStore for uint256[];
 
-    /** Period when delegates can vote from proposal submission. Hardcoded to week */
-    uint256 constant votingPeriod = 60 * 60 * 24 * 7;
     /** Number of Aerum blocks when composers are updated */
     uint256 constant delegatesUpdateAerumBlocksPeriod = 1000;
-    /** Bond required for delegate to be registered. Should be set to 100k */
+
+    /** Min voting period. Hardcoded to one day */
+    uint256 constant minVotingPeriod = 60 * 60 * 24;
+
+    /** Max voting period. Hardcoded to one month */
+    uint256 constant maxVotingPeriod = 60 * 60 * 24 * 30;
+
+    /** Period when delegates can vote from proposal submission. */
+    uint256 votingPeriod;
+
+    /** Bond required for delegate to be registered. Should be more than 1M */
     uint256 public delegateBond;
 
     /** User used to upgrade governance or delegate contracts. Owner by default */
     address public upgradeAdmin;
-    /** User which can approve delegates on initial phase. Owner by default */
-    address public delegateApprover;
-    /** Is delegate approver renounced. If yes we won't be able to set it again */
-    bool public delegateApproverRenounced;
 
     /** XRM token */
     ERC20 public token;
+
+    /** Delegate factory */
+    IDelegateFactory public delegateFactory;
 
     /** List of all delegates */
     address[] public delegates;
@@ -43,14 +51,10 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     /** List of bonds known by delegate */
     mapping(address => uint256) public bonds;
 
-    /** Min stake required to be valid delegate. We should keep full history for consensus */
-    uint256[] public minBalance;
-    /** Keep alive duration in which delegate should call keep alive method to be valid. We should keep full history for consensus */
-    uint256[] public keepAliveDuration;
     /** Composers count. We should keep full history for consensus */
     uint256[] public composersCount;
 
-    enum VotingCategory { BLACKLIST, ACTIVATE }
+    enum VotingCategory { BLACKLIST }
 
     struct Voting {
         bytes32 id;
@@ -66,29 +70,16 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     mapping(bytes32 => Voting) public votings;
 
     event UpgradeAdminUpdated(address admin);
-    event DelegateApproverUpdated(address admin);
-    event DelegateApproverRenounced();
-
-    event MinBalanceUpdated(uint256 balance);
-    event KeepAliveDurationUpdated(uint256 duration);
     event ComposersCountUpdated(uint256 count);
     event BlacklistUpdated(address indexed delegate, bool blocked);
 
     event DelegateCreated(address indexed delegate, address indexed owner);
-    event DelegateApproved(address indexed delegate);
     event DelegateUnregistered(address indexed delegate);
     event BondSent(address indexed delegate, uint256 amount);
-    event StakeLocked(address indexed delegate, uint256 amount);
 
     event ProposalSubmitted(bytes32 indexed id, address indexed author, address indexed delegate, VotingCategory category, bool proposal);
     event Vote(bytes32 indexed id, address indexed voter, bool inFavor);
-    event VotingFinalized(bytes32 indexed id, bool voted, bool supported);
-
-    /** Check if delegate is known **/
-    modifier onlyOwnerOrDelegateApprover() {
-        require((owner() == msg.sender) || (delegateApprover == msg.sender));
-        _;
-    }
+    event VotingFinalized(bytes32 indexed id, bool voted, bool supported, uint256 proponentsWeight, uint256 opponentsWeight);
 
     /** Check if delegate is known **/
     modifier onlyKnownDelegate(address delegate) {
@@ -102,39 +93,40 @@ contract Governance is GovernanceReference, Initializable, Ownable {
         _;
     }
 
-    /** Check if delegate approver active **/
-    modifier onlyWhenDelegateApproverActive {
-        require(!delegateApproverRenounced);
-        _;
-    }
-
     /**
     * @notice Governance initializer
     * @param _owner Governance owner address
     * @param _token XRM token address
-    * @param _minBalance Min stake balance required for delegate to be valid
-    * @param _keepAliveDuration Max keep alive duration when delegate should sent keep alive to be valid
     * @param _delegatesLimit Max delegates / composers limit at one point of time
     * @param _delegateBond Delegate bond to be sent to create new delegate
     */
     function init(
-        address _owner, address _token,
-        uint256 _minBalance, uint256 _keepAliveDuration, uint256 _delegatesLimit,
-        uint256 _delegateBond
-    ) initializer public {
+        address _owner, address _token, address _delegateFactory,
+        uint256 _delegatesLimit, uint256 _delegateBond
+    ) initiator("v1") public {
         require(_owner != address(0));
         require(_token != address(0));
+        require(_delegateFactory != address(0));
+        require(_delegateBond >= 10 ** 24);
 
         Ownable.initialize(_owner);
         token = ERC20(_token);
+        delegateFactory = IDelegateFactory(_delegateFactory);
 
         delegateBond = _delegateBond;
-        delegateApprover = _owner;
         upgradeAdmin = _owner;
+        votingPeriod = minVotingPeriod;
 
-        minBalance.storeInt(_minBalance);
-        keepAliveDuration.storeInt(_keepAliveDuration);
         composersCount.storeInt(_delegatesLimit);
+    }
+
+    /**
+    * @notice Set voting period
+    * @param _votingPeriod New voting period
+    */
+    function setVotingPeriod(uint256 _votingPeriod) external onlyOwner {
+        require(_votingPeriod >= minVotingPeriod && _votingPeriod <= maxVotingPeriod);
+        votingPeriod = _votingPeriod;
     }
 
     /**
@@ -144,42 +136,6 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     function setUpgradeAdmin(address _admin) external onlyOwner {
         upgradeAdmin = _admin;
         emit UpgradeAdminUpdated(_admin);
-    }
-
-    /**
-    * @notice Set user who can approve delegates
-    * @param _admin New delegate approver
-    */
-    function setDelegateApprover(address _admin) external onlyOwner onlyWhenDelegateApproverActive {
-        delegateApprover = _admin;
-        emit DelegateApproverUpdated(_admin);
-    }
-
-    /**
-    * @notice Set user who can approve delegates
-    */
-    function renouncedDelegateApprover() external onlyOwner {
-        delegateApproverRenounced = true;
-        delegateApprover = address(0);
-        emit DelegateApproverRenounced();
-    }
-
-    /**
-    * @notice Set up minimum delegate balance necessary to participate in staking
-    * @param _balance Minimum delegate balance
-    */
-    function setMinBalance(uint256 _balance) external onlyOwner {
-        minBalance.storeInt(_balance);
-        emit MinBalanceUpdated(_balance);
-    }
-
-    /**
-    * @notice Set up duration between keep alive message and current time to consider delegate active
-    * @param _duration Keep alive duration
-    */
-    function setKeepAliveDuration(uint256 _duration) external onlyOwner {
-        keepAliveDuration.storeInt(_duration);
-        emit KeepAliveDurationUpdated(_duration);
     }
 
     /**
@@ -197,24 +153,8 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     * @param _blocked Is delegate blocked or not
     */
     function updateBlacklist(address _delegate, bool _blocked) external onlyOwner onlyKnownDelegate(_delegate) {
-        Delegate(_delegate).updateBlacklist(_blocked);
+        IDelegate(_delegate).updateBlacklist(_blocked);
         emit BlacklistUpdated(_delegate, _blocked);
-    }
-
-    /**
-    * @notice Get min balance for timestamp
-    * @param _timestamp Time for which delegate is blocked or not
-    */
-    function getMinBalance(uint256 _timestamp) external view returns (uint256) {
-        return minBalance.getInt(_timestamp);
-    }
-
-    /**
-    * @notice Get keep alive duration for timestamp
-    * @param _timestamp Time for which keep alive duration is returned
-    */
-    function getKeepAliveDuration(uint256 _timestamp) external view returns (uint256) {
-        return keepAliveDuration.getInt(_timestamp);
     }
 
     /**
@@ -226,64 +166,24 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     }
 
     /**
-    * @notice locks delegate stake by owner
-    * @param _delegate Delegate to lock stake
-    * @param _amount Stake amount to lock
-    */
-    function lockStake(address _delegate, uint256 _amount) external onlyOwner onlyKnownDelegate(_delegate) {
-        Delegate(_delegate).lockStake(_amount);
-        emit StakeLocked(_delegate, _amount);
-    }
-
-    /**
     * @notice Create new delegate contract, get bond and transfer ownership to a caller
     * @param _name Delegate name
     * @param _aerum Delegate Aerum address
     */
-    function createDelegate(bytes20 _name, address _aerum) external returns (address) {
+    function createDelegate(bytes32 _name, address _aerum) external returns (address) {
         token.safeTransferFrom(msg.sender, address(this), delegateBond);
 
-        Delegate impl = new Delegate();
-        OwnedUpgradeabilityProxy proxy = new OwnedUpgradeabilityProxy(impl);
-        proxy.changeAdmin(upgradeAdmin);
-        Delegate wrapper = Delegate(proxy);
-        wrapper.init(msg.sender, token, _name, _aerum);
+        (address proxy, ) = delegateFactory.createDelegate(_name, _aerum, address(this), msg.sender, upgradeAdmin);
 
-        address proxyAddr = address(wrapper);
-        knownDelegates[proxyAddr] = true;
-        bonds[proxyAddr] = delegateBond;
+        delegates.push(proxy);
+        knownDelegates[proxy] = true;
+        bonds[proxy] = delegateBond;
 
-        emit DelegateCreated(proxyAddr, msg.sender);
+        // Set delegate as active
+        IDelegate(proxy).setActive(true);
 
-        return proxyAddr;
-    }
-
-    /**
-    * @notice Register specified delegate by delegate approver
-    * @param _delegate Delegate to be approved
-    */
-    function approveDelegate(address _delegate) external onlyOwnerOrDelegateApprover onlyKnownDelegate(_delegate) {
-        approveDelegateInternal(_delegate);
-    }
-
-    /**
-    * @notice Register specified delegate (by delegate approver or voting)
-    * @param _delegate Delegate to be approved
-    */
-    function approveDelegateInternal(address _delegate) internal {
-        require(bonds[_delegate] >= delegateBond);
-
-        Delegate(_delegate).setActive(true);
-
-        emit DelegateApproved(_delegate);
-
-        for (uint256 index = 0; index < delegates.length; index++) {
-            if (delegates[index] == _delegate) {
-                // delegate already registered
-                return;
-            }
-        }
-        delegates.push(_delegate);
+        emit DelegateCreated(proxy, msg.sender);
+        return proxy;
     }
 
     /**
@@ -291,8 +191,8 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     */
     function unregisterDelegate() external onlyKnownDelegate(msg.sender) {
         address delegateAddr = msg.sender;
-        Delegate delegate = Delegate(delegateAddr);
-        require(delegate.isActive(block.timestamp));
+        IDelegate delegate = IDelegate(delegateAddr);
+        require(delegate.isActive(block.timestamp) && !delegate.isBlacklisted(block.timestamp));
 
         uint256 bond = bonds[delegateAddr];
         bonds[delegateAddr] = 0;
@@ -326,7 +226,7 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     * @param _blockNum Aerum block number. Used for delegates list shifting
     * @param _timestamp Time at which composers list is requested
     */
-    function getComposers(uint256 _blockNum, uint256 _timestamp) external view returns (address[]) {
+    function getComposers(uint256 _blockNum, uint256 _timestamp) external view returns (address[] memory) {
         (address[] memory candidates,) = getValidDelegates(_timestamp);
         uint256 candidatesLength = candidates.length;
 
@@ -352,7 +252,7 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     /**
     * @notice List of all active delegates addresses
     */
-    function getDelegates() public view returns (address[]) {
+    function getDelegates() public view returns (address[] memory) {
         return delegates;
     }
 
@@ -367,7 +267,7 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     * @notice List of valid delegates which might be composers and their names
     * @param _timestamp Time at which delegates list is requested
     */
-    function getValidDelegates(uint256 _timestamp) public view returns (address[], bytes20[]) {
+    function getValidDelegates(uint256 _timestamp) public view returns (address[] memory, bytes32[] memory) {
         address[] memory array = new address[](delegates.length);
         uint16 length = 0;
         for (uint256 i = 0; i < delegates.length; i++) {
@@ -377,11 +277,11 @@ contract Governance is GovernanceReference, Initializable, Ownable {
             }
         }
         address[] memory addresses = new address[](length);
-        bytes20[] memory names = new bytes20[](length);
+        bytes32[] memory names = new bytes32[](length);
         for (uint256 j = 0; j < length; j++) {
-            Delegate delegate = Delegate(array[j]);
-            addresses[j] = delegate.aerum();
-            names[j] = delegate.name();
+            IDelegate delegate = IDelegate(array[j]);
+            addresses[j] = delegate.getDelegateAerumAddress();
+            names[j] = delegate.getNameAsBytes();
         }
         return (addresses, names);
     }
@@ -404,7 +304,7 @@ contract Governance is GovernanceReference, Initializable, Ownable {
             // Delegate not owned by this contract
             return false;
         }
-        Delegate proxy = Delegate(_delegate);
+        IDelegate proxy = IDelegate(_delegate);
         // Delegate has not been activated
         if (!proxy.isActive(_timestamp)) {
             return false;
@@ -413,25 +313,7 @@ contract Governance is GovernanceReference, Initializable, Ownable {
         if (proxy.isBlacklisted(_timestamp)) {
             return false;
         }
-        // Delegate has enough minimal stake to participate in consensus
-        uint256 stake = proxy.getStake(_timestamp);
-        if (stake < minBalance.getInt(_timestamp)) {
-            return false;
-        }
-        // Delegate has produced a keep-alive message in last 24h
-        uint256 lastKeepAlive = proxy.getKeepAliveTimestamp(_timestamp);
-        return lastKeepAlive.add(keepAliveDuration.getInt(_timestamp)) >= block.timestamp;
-    }
-
-    /**
-    * @notice Make a proposal to approved calling delegate
-    * @param _id Voting id
-    */
-    function submitActivateProposal(bytes32 _id) external onlyKnownDelegate(msg.sender) {
-        address delegate = msg.sender;
-        require(!Delegate(delegate).isActive(block.timestamp));
-
-        submitProposal(_id, delegate, VotingCategory.ACTIVATE, true);
+        return true;
     }
 
     /**
@@ -503,6 +385,8 @@ contract Governance is GovernanceReference, Initializable, Ownable {
     function finalizeVoting(bytes32 _id) external {
         bool voted;
         bool supported;
+        uint256 proponentsWeight;
+        uint256 opponentsWeight;
         Voting storage voting = votings[_id];
         // have specified blacklist voting
         require(voting.id == _id);
@@ -512,34 +396,32 @@ contract Governance is GovernanceReference, Initializable, Ownable {
         uint256 requiredVotesNumber = getValidDelegateCount() * 3 / 10;
         if (voting.voters.length >= requiredVotesNumber) {
             voted = true;
-            uint256 proponents = 0;
             for (uint256 index = 0; index < voting.voters.length; index++) {
+                uint256 stake = IDelegate(voting.voters[index]).getStake(block.timestamp);
                 if (voting.votes[voting.voters[index]]) {
-                    proponents++;
+                    proponentsWeight = proponentsWeight.add(stake);
+                } else {
+                    opponentsWeight = opponentsWeight.add(stake);
                 }
             }
-            if (proponents * 2 > voting.voters.length) {
+            if(proponentsWeight > opponentsWeight) {
                 supported = true;
                 if (voting.category == VotingCategory.BLACKLIST) {
-                    Delegate(voting.delegate).updateBlacklist(voting.proposal);
-                }
-                // NOTE: It's always true for activate
-                if (voting.category == VotingCategory.ACTIVATE) {
-                    approveDelegateInternal(voting.delegate);
+                    IDelegate(voting.delegate).updateBlacklist(voting.proposal);
                 }
             }
         }
 
         delete votings[_id];
 
-        emit VotingFinalized(_id, voted, supported);
+        emit VotingFinalized(_id, voted, supported, proponentsWeight, opponentsWeight);
     }
 
     /**
     * @notice Returns voting details by id
     * @param _id Voting id
     */
-    function getVotingDetails(bytes32 _id) external view returns (bytes32, uint256, address, VotingCategory, bool, address[], bool[]) {
+    function getVotingDetails(bytes32 _id) external view returns (bytes32, uint256, address, VotingCategory, bool, address[] memory, bool[] memory) {
         Voting storage voting = votings[_id];
         address[] storage voters = voting.voters;
 

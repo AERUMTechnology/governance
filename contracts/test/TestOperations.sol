@@ -1,4 +1,4 @@
-pragma solidity 0.4.24;
+pragma solidity 0.5.10;
 
 import "../library/OperationStore.sol";
 
@@ -31,7 +31,7 @@ contract TestOperations {
     /**
      * @notice Returns integer history
      */
-    function getIntHistory() external view returns (uint256[]) {
+    function getIntHistory() external view returns (uint256[] memory) {
         return intHistory;
     }
 
@@ -54,7 +54,7 @@ contract TestOperations {
     /**
      * @notice Returns bool history
      */
-    function getBoolHistory() external view returns (uint256[]) {
+    function getBoolHistory() external view returns (uint256[] memory) {
         return boolHistory;
     }
 
@@ -77,7 +77,7 @@ contract TestOperations {
     /**
      * @notice Returns time history
      */
-    function getTimestampHistory() external view returns (uint256[]) {
+    function getTimestampHistory() external view returns (uint256[] memory) {
         return timeHistory;
     }
 

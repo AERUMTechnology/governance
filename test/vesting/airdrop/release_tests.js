@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('airdrop > release', (accounts) => {
 
@@ -49,7 +50,7 @@ contract('airdrop > release', (accounts) => {
     const tokensBalanceBefore = await token.balanceOf(beneficiary1);
     await airdrop.release({ from: beneficiary1 });
     const tokensBalanceAfter = await token.balanceOf(beneficiary1);
-    assert.isTrue(tokensBalanceBefore.add(100).eq(tokensBalanceAfter));
+    assert.isTrue(tokensBalanceBefore.add(new BN(100)).eq(tokensBalanceAfter));
   });
 
 });

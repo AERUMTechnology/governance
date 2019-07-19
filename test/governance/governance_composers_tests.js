@@ -43,10 +43,6 @@ contract('governance > composers', (accounts) => {
     delegate2 = await fixture.createDelegate("Delegate2", delegate2Owner);
     delegate3 = await fixture.createDelegate("Delegate3", delegate3Owner);
 
-    await governance.approveDelegate(delegate1.address, { from: owner });
-    await governance.approveDelegate(delegate2.address, { from: owner });
-    await governance.approveDelegate(delegate3.address, { from: owner });
-
     await token.transfer(staker1, 1000, { from: owner });
     await token.transfer(staker2, 1000, { from: owner });
     await token.transfer(staker3, 1000, { from: owner });
@@ -59,29 +55,12 @@ contract('governance > composers', (accounts) => {
     await delegate2.stake(200, { from: staker2 });
     await delegate3.stake(300, { from: staker3 });
 
-    await delegate1.lockStake(100, { from: delegate1Owner });
-    await delegate2.lockStake(200, { from: delegate2Owner });
-    await delegate3.lockStake(300, { from: delegate3Owner });
-  });
-
-  it("delegate should be invalid before sending keep alive", async () => {
-    await delegate1.lockStake(100, { from: delegate1Owner });
-    timestamp = utils.blockTime();
-    assert.isFalse(await governance.isDelegateValid(delegate1.address, timestamp));
-  });
-
-  it("delegate should be invalid for the block before keep alive", async () => {
-    await utils.increaseTime(1);
-    await delegate1.keepAlive({ from: delegate1Owner });
-    assert.isFalse(await governance.isDelegateValid(delegate1.address, timestamp));
-  });
-
-  it("delegate should be valid after sending keep alive", async () => {
-    timestamp = utils.blockTime();
-    assert.isTrue(await governance.isDelegateValid(delegate1.address, timestamp));
+    await governance.updateBlacklist(delegate2.address, true);
+    await governance.updateBlacklist(delegate3.address, true);
   });
 
   it("delegate should be valid for the block before blacklist", async () => {
+    timestamp = await utils.blockTime();
     await utils.increaseTime(1);
     await governance.updateBlacklist(delegate1.address, true);
     assert.isTrue(await governance.isDelegateValid(delegate1.address, timestamp));
@@ -89,102 +68,91 @@ contract('governance > composers', (accounts) => {
 
   it("delegate should be invalid when in blacklist", async () => {
     await utils.increaseTime(1);
-    assert.isFalse(await governance.isDelegateValid(delegate1.address, utils.blockTime()));
+    assert.isFalse(await governance.isDelegateValid(delegate1.address, await utils.blockTime()));
   });
 
   it("delegate should be valid once removed from the blacklist", async () => {
     await governance.updateBlacklist(delegate1.address, false);
-    assert.isTrue(await governance.isDelegateValid(delegate1.address, utils.blockTime()));
+    assert.isTrue(await governance.isDelegateValid(delegate1.address, await utils.blockTime()));
   });
 
   it("delegate should be valid for the block with enough tokens", async () => {
-    timestamp = utils.blockTime();
+    timestamp = await utils.blockTime();
     await utils.increaseTime(1);
-    await delegate1.lockStake(0, { from: delegate1Owner });
     assert.isTrue(await governance.isDelegateValid(delegate1.address, timestamp));
   });
 
-  it("delegate should be invalid when there are not enough tokens", async () => {
-    timestamp = utils.blockTime();
-    assert.isFalse(await governance.isDelegateValid(delegate1.address, utils.blockTime()));
-  });
-
   it("should return the same composers for the same time argument", async () => {
-    await delegate1.lockStake(100, { from: delegate1Owner });
-    timestamp = utils.blockTime();
+    timestamp = await utils.blockTime();
     let composers = await governance.getComposers(0, timestamp);
     assert.equal(composers.length, 1);
     assert.equal(composers[0], delegate1Owner);
 
     await utils.increaseTime(1);
-    await delegate2.lockStake(200, { from: delegate2Owner });
-    await delegate1.keepAlive({ from: delegate1Owner });
-    await delegate2.keepAlive({ from: delegate2Owner });
+    await governance.updateBlacklist(delegate2.address, false);
 
     composers = await governance.getComposers(0, timestamp);
     assert.equal(composers.length, 1);
     assert.equal(composers[0], delegate1Owner);
 
-    timestamp = utils.blockTime();
+    timestamp = await utils.blockTime();
     composers = await governance.getComposers(0, timestamp);
     assert.equal(composers.length, 2);
     assert.equal(composers[0], delegate1Owner);
     assert.equal(composers[1], delegate2Owner);
 
     await utils.increaseTime(1);
-    await governance.setMinBalance(200);
+    await governance.updateBlacklist(delegate1.address, true);
     composers = await governance.getComposers(0, timestamp);
     assert.equal(composers.length, 2);
 
-    composers = await governance.getComposers(0, utils.blockTime());
+    composers = await governance.getComposers(0, await utils.blockTime());
     assert.equal(composers.length, 1);
     assert.equal(composers[0], delegate2Owner);
   });
 
   it("should be able to change composer count", async () => {
-    await governance.setMinBalance(100);
+    await governance.updateBlacklist(delegate1.address, false);
+    await governance.updateBlacklist(delegate3.address, false);
 
-    await delegate3.keepAlive({ from: delegate3Owner });
-    await delegate3.lockStake(300, { from: delegate3Owner });
-
-    let composers = await governance.getComposers(2000, utils.blockTime());
+    let composers = await governance.getComposers(2000, await utils.blockTime());
     assert.equal(composers.length, 3);
 
     await utils.increaseTime(1);
     await governance.setComposersCount(2);
 
-    composers = await governance.getComposers(2000, utils.blockTime());
+    composers = await governance.getComposers(2000, await utils.blockTime());
     assert.equal(composers.length, 2);
   });
 
   it("should return composers in correct order", async () => {
     await governance.setComposersCount(3);
 
-    let composers = await governance.getComposers(0, utils.blockTime());
+    let composers = await governance.getComposers(0, await utils.blockTime());
     assert.equal(composers.length, 3);
     assert.equal(composers[0], await delegate1.aerum());
     assert.equal(composers[1], await delegate2.aerum());
     assert.equal(composers[2], await delegate3.aerum());
 
-    composers = await governance.getComposers(1000, utils.blockTime());
+    composers = await governance.getComposers(1000, await utils.blockTime());
     assert.equal(composers.length, 3);
     assert.equal(composers[0], await delegate2.aerum());
     assert.equal(composers[1], await delegate3.aerum());
     assert.equal(composers[2], await delegate1.aerum());
 
-    composers = await governance.getComposers(2000, utils.blockTime());
+    composers = await governance.getComposers(2000, await utils.blockTime());
     assert.equal(composers.length, 3);
     assert.equal(composers[0], await delegate3.aerum());
     assert.equal(composers[1], await delegate1.aerum());
     assert.equal(composers[2], await delegate2.aerum());
 
-    composers = await governance.getComposers(3000, utils.blockTime());
+    composers = await governance.getComposers(3000, await utils.blockTime());
     assert.equal(composers.length, 3);
     assert.equal(composers[0], await delegate1.aerum());
     assert.equal(composers[1], await delegate2.aerum());
     assert.equal(composers[2], await delegate3.aerum());
 
-    composers = await governance.getComposers(4000, utils.blockTime());
+    composers = await governance.getComposers(4000, await utils.blockTime());
     assert.equal(composers.length, 3);
     assert.equal(composers[0], await delegate2.aerum());
     assert.equal(composers[1], await delegate3.aerum());

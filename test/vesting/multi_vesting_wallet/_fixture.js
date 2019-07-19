@@ -1,10 +1,13 @@
 const utils = require("../../utils");
+const BN = web3.utils.BN;
 
 const AerumToken = artifacts.require("AerumToken");
 const MultiVestingWallet = artifacts.require("MultiVestingWallet");
 const Governance = artifacts.require("Governance");
 const Delegate = artifacts.require("Delegate");
+const DelegateFactory = artifacts.require("DelegateFactory");
 
+const delegateBond = (new BN(1000000)).mul((new BN(10)).pow(new BN(18)));
 let owner;
 let beneficiary1;
 let beneficiary2;
@@ -17,6 +20,7 @@ let governance;
 let token;
 let delegate;
 let vesting;
+let factory;
 
 let start;
 let duration;
@@ -32,18 +36,17 @@ async function setUp(accounts, revocable = true) {
   delegateOwner = accounts[6];
 
   token = await AerumToken.new();
+  factory = await DelegateFactory.new(token.address);
   governance = await Governance.new();
-  await governance.init(owner, token.address, 100, 24 * 60 * 60, 10, 100);
+  await governance.init(owner, token.address, factory.address, 10, delegateBond);
 
-  await token.transfer(delegateOwner, 1000);
-  await token.approve(governance.address, 100, { from: delegateOwner });
-  const tx = await governance.createDelegate("Delegate", upgradeAdmin, { from: delegateOwner });
+  await token.transfer(delegateOwner, delegateBond);
+  await token.approve(governance.address, delegateBond, { from: delegateOwner });
+  const tx = await governance.createDelegate(utils.asciiToHex("Delegate"), upgradeAdmin, { from: delegateOwner });
   const addr = utils.getEventArg(tx, "DelegateCreated", "delegate");
   delegate = await utils.contractAt(Delegate, addr);
 
-  await governance.approveDelegate(delegate.address, { from: owner });
-
-  start = utils.blockTime() + 10;
+  start = (await utils.blockTime()) + 10;
   duration = 100;
   cliffOffset = 50;
   vesting = await MultiVestingWallet.new(token.address, start, cliffOffset, duration, revocable);
@@ -66,7 +69,8 @@ module.exports = {
     return {
       token,
       vesting,
-      delegate
+      delegate,
+      factory
     }
   },
   variables: function accounts() {

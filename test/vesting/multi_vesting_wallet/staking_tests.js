@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 const FakeDelegate = artifacts.require("FakeDelegate");
 
@@ -42,9 +43,9 @@ contract('multi vesting wallet > staking', (accounts) => {
   });
 
   it("should be able to stake from owner", async () => {
-    assert.equal(await token.balanceOf(vesting.address), 1000);
+    assert.isTrue((await token.balanceOf(vesting.address)).eq(new BN(1000)));
     await vesting.stake(delegate.address, 1000, { from: owner });
-    assert.equal(await token.balanceOf(vesting.address), 0);
+    assert.isTrue((await token.balanceOf(vesting.address)).eq(new BN(0)));
   });
 
   it("should not be able to withdraw when staked", async () => {
@@ -67,15 +68,14 @@ contract('multi vesting wallet > staking', (accounts) => {
   });
 
   it("should be able to unstake from owner", async () => {
-    assert.equal(await token.balanceOf(vesting.address), 0);
+    assert.isTrue((await token.balanceOf(vesting.address)).eq(new BN(0)));
     await vesting.unstake(delegate.address, 1000, { from: owner });
-    assert.equal(await token.balanceOf(vesting.address), 1000);
+    assert.isTrue((await token.balanceOf(vesting.address)).eq(new BN(1000)));
   });
 
   it("should be able to release after unstake", async () => {
-    assert.equal(await token.balanceOf(beneficiary1), 0);
+    assert.isTrue((await token.balanceOf(beneficiary1)).eq(new BN(0)));
     await vesting.release({ from: beneficiary1 });
-    assert.equal(await token.balanceOf(beneficiary1), 100);
+    assert.isTrue((await token.balanceOf(beneficiary1)).eq(new BN(100)));
   });
-
 });

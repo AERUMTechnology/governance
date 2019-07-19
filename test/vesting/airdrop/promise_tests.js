@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('airdrop > promise', (accounts) => {
 
@@ -27,7 +28,7 @@ contract('airdrop > promise', (accounts) => {
 
   it("should not be able to promise tokens by not owner", async () => {
     try {
-      await airdrop.promise(beneficiary1, 100, { from: simpleUser });
+      await airdrop.promiseSingle(beneficiary1, 100, { from: simpleUser });
       assert.fail("was able to promise tokens by not owner");
     } catch (e) {
       utils.assertVMError(e);
@@ -35,17 +36,17 @@ contract('airdrop > promise', (accounts) => {
   });
 
   it("should be able to promise some tokens", async () => {
-    assert.equal(await airdrop.balance(beneficiary1), 0);
+    assert.isTrue((await airdrop.balance(beneficiary1)).eq(new BN(0)));
     assert.equal(await airdrop.known(beneficiary1), false);
-    await airdrop.promise(beneficiary1, 50, { from: owner });
-    assert.equal(await airdrop.balance(beneficiary1), 50);
+    await airdrop.promiseSingle(beneficiary1, 50, { from: owner });
+    assert.isTrue((await airdrop.balance(beneficiary1)).eq(new BN(50)));
     assert.equal(await airdrop.known(beneficiary1), true);
   });
 
   it("should be able to do few promises at the same time", async () => {
     await airdrop.promiseBatch([beneficiary1, beneficiary2], [100, 200], { from: owner });
-    assert.equal(await airdrop.balance(beneficiary1), 100);
-    assert.equal(await airdrop.balance(beneficiary2), 200);
+    assert.isTrue((await airdrop.balance(beneficiary1)).eq(new BN(100)));
+    assert.isTrue((await airdrop.balance(beneficiary2)).eq(new BN(200)));
   });
 
   it("should not be able to promise list with different list lengths", async () => {
@@ -59,7 +60,7 @@ contract('airdrop > promise', (accounts) => {
 
   it("should return correct number of beneficiaries", async () => {
     const numberOfBeneficiaries = await airdrop.getBeneficiariesCount();
-    assert.isTrue(numberOfBeneficiaries.eq(2));
+    assert.isTrue(numberOfBeneficiaries.eq(new BN(2)));
   });
 
   it("should return correct beneficiaries", async () => {

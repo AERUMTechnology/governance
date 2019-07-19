@@ -31,7 +31,7 @@ contract('multi vesting wallet > constructor', (accounts) => {
 
   it("contract token should not be empty", async () => {
     try {
-      await MultiVestingWallet.new(0, 100, 100, 100, false);
+      await MultiVestingWallet.new('0x0000000000000000000000000000000000000000', 100, 100, 100, false);
       assert.fail("contract token address is empty");
     } catch (e) {
       utils.assertVMError(e);

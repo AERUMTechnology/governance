@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('vesting wallet > release', (accounts) => {
 
@@ -35,7 +36,7 @@ contract('vesting wallet > release', (accounts) => {
     // NOTE: Wait start of vesting
     await utils.increaseTime(30);
 
-    assert.equal(await vesting.releasableAmount(), 0);
+    assert.isTrue((await vesting.releasableAmount()).eq(new BN(0)));
   });
 
   it("should not be able to release when cliff NOT started", async () => {
@@ -52,16 +53,16 @@ contract('vesting wallet > release', (accounts) => {
     await utils.increaseTime(40);
 
     const releasableAmount = await vesting.releasableAmount();
-    const blockTime = utils.blockTime();
+    const blockTime = await utils.blockTime();
     const timeFromVestingStart = blockTime - start;
     const vestingCompletionRate = timeFromVestingStart / duration;
-    assert.equal(releasableAmount, vestingCompletionRate * tokensVested);
+    assert.isTrue(releasableAmount.eq(new BN(vestingCompletionRate * tokensVested)));
   });
 
   it("should be able to release when cliff passed", async () => {
     await vesting.release({ from: beneficiary });
     const tokensBalance = await token.balanceOf(beneficiary);
-    assert.isTrue(tokensBalance.greaterThan(tokensInitBalance));
+    assert.isTrue(tokensBalance.gt(tokensInitBalance));
   });
 
   it("releasable amount should be total when vesting period ended", async () => {
@@ -70,16 +71,16 @@ contract('vesting wallet > release', (accounts) => {
 
     const tokensReleased = await token.balanceOf(beneficiary);
     const releasableAmount = await vesting.releasableAmount();
-    assert.equal(releasableAmount.plus(tokensReleased).minus(tokensInitBalance), tokensVested);
+    assert.equal(releasableAmount.add(tokensReleased).sub(tokensInitBalance), tokensVested);
     const tokenBalance = await token.balanceOf(vesting.address);
-    assert.isTrue(tokenBalance.greaterThan(0));
+    assert.isTrue(tokenBalance.gt(new BN(0)));
   });
 
   it("should be able to release when cliff passed", async () => {
     await vesting.release({ from: beneficiary });
     const tokensBalance = await token.balanceOf(beneficiary);
-    assert.equal(tokensBalance.minus(tokensInitBalance), tokensVested);
-    assert.equal(await token.balanceOf(vesting.address), 0);
+    assert.equal(tokensBalance.sub(tokensInitBalance), tokensVested);
+    assert.isTrue((await token.balanceOf(vesting.address)).eq(new BN(0)));
   });
 
 });

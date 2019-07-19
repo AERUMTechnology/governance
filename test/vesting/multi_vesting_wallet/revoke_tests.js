@@ -1,5 +1,6 @@
 const utils = require("../../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 const MultiVestingWallet = artifacts.require("MultiVestingWallet");
 
@@ -77,8 +78,8 @@ contract('multi vesting wallet > revoke', (accounts) => {
     await vesting.revoke(beneficiary1, { from: owner });
     assert.equal(await vesting.revoked(beneficiary1), true);
     const remainingBalanceAfter = await vesting.remainingBalance();
-    assert.isTrue(remainingBalanceAfter.greaterThan(remainingBalanceBefore));
-    revokeTime = utils.blockTime();
+    assert.isTrue(remainingBalanceAfter.gt(remainingBalanceBefore));
+    revokeTime = await utils.blockTime();
   });
 
   it("should not be able to revoke twice", async () => {
@@ -102,7 +103,7 @@ contract('multi vesting wallet > revoke', (accounts) => {
     const tokensBalanceBefore = await token.balanceOf(beneficiary2);
     await vesting.release({ from: beneficiary2 });
     const tokensBalanceAfter = await token.balanceOf(beneficiary2);
-    assert.isTrue(tokensBalanceAfter.greaterThan(tokensBalanceBefore));
+    assert.isTrue(tokensBalanceAfter.gt(tokensBalanceBefore));
   });
 
   it("should be able to unrevoke", async () => {
@@ -121,8 +122,8 @@ contract('multi vesting wallet > revoke', (accounts) => {
   });
 
   it("should be able to promise after unrevoke", async () => {
-    await vesting.promise(beneficiary2, 210, { from: owner });
-    assert.equal(await vesting.promised(beneficiary2), 210);
+    await vesting.promiseSingle(beneficiary2, 210, { from: owner });
+    assert.isTrue((await vesting.promised(beneficiary2)).eq(new BN(210)));
   });
 
   it("should not be able to release more that fixed on revoke", async () => {
@@ -139,8 +140,8 @@ contract('multi vesting wallet > revoke', (accounts) => {
     const tokensBalanceBefore = await token.balanceOf(beneficiary1);
     await vesting.release({ from: beneficiary1 });
     const tokensBalanceAfter = await token.balanceOf(beneficiary1);
-    const tokensReleased = tokensBalanceAfter.minus(tokensBalanceBefore);
-    assert.isTrue(tokensReleased.greaterThan(0));
+    const tokensReleased = tokensBalanceAfter.sub(tokensBalanceBefore);
+    assert.isTrue(tokensReleased.gt(new BN(0)));
     assert.isTrue(tokensReleased.eq(await vesting.released(beneficiary1)));
   });
 
@@ -155,8 +156,7 @@ contract('multi vesting wallet > revoke', (accounts) => {
     const tokensBalanceBefore = await token.balanceOf(beneficiary2);
     await vesting.release({ from: beneficiary2 });
     const tokensBalanceAfter = await token.balanceOf(beneficiary2);
-    assert.isTrue(tokensBalanceAfter.greaterThan(tokensBalanceBefore));
-    assert.equal(await vesting.released(beneficiary2), 210);
+    assert.isTrue(tokensBalanceAfter.gt(tokensBalanceBefore));
+    assert.isTrue((await vesting.released(beneficiary2)).eq(new BN(210)));
   });
-
 });

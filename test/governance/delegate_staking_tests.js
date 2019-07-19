@@ -1,5 +1,6 @@
 const utils = require("../utils");
 const fixture = require("./_fixture");
+const BN = web3.utils.BN;
 
 contract('governance > staking', (accounts) => {
 
@@ -14,6 +15,7 @@ contract('governance > staking', (accounts) => {
   let staker1;
   let staker2;
   let staker3;
+  let staker4;
   let notStaker;
   let delegate1Owner;
   let delegate2Owner;
@@ -32,6 +34,7 @@ contract('governance > staking', (accounts) => {
     staker1 = fixtureAccounts.staker1;
     staker2 = fixtureAccounts.staker2;
     staker3 = fixtureAccounts.staker3;
+    staker4 = fixtureAccounts.staker4;
     notStaker = fixtureAccounts.notStaker;
     delegate1Owner = fixtureAccounts.delegate1Owner;
     delegate2Owner = fixtureAccounts.delegate2Owner;
@@ -41,13 +44,10 @@ contract('governance > staking', (accounts) => {
     delegate2 = await fixture.createDelegate("Delegate2", delegate2Owner);
     delegate3 = await fixture.createDelegate("Delegate3", delegate3Owner);
 
-    await governance.approveDelegate(delegate1.address, { from: owner });
-    await governance.approveDelegate(delegate2.address, { from: owner });
-    await governance.approveDelegate(delegate3.address, { from: owner });
-
     await token.transfer(staker1, 1000, { from: owner });
     await token.transfer(staker2, 1000, { from: owner });
     await token.transfer(staker3, 1000, { from: owner });
+    await token.transfer(staker4, 1000, { from: owner });
   });
 
   it("should not be able to deposit without tokens", async () => {
@@ -63,14 +63,16 @@ contract('governance > staking', (accounts) => {
     await token.approve(delegate1.address, 100, { from: staker1 });
     await delegate1.stake(100, { from: staker1 });
     assert.equal(await token.balanceOf(staker1), 900);
-    assert.equal(await delegate1.stakeOf(staker1), 100);
+    assert.equal(await delegate1.stakeOf(staker1, await utils.blockTime()), 100);
+    assert.isTrue((await delegate1.getStake(await utils.blockTime())).eq(new BN(100)));
   });
 
   it("several stakers should be able to deposit to a delegate", async () => {
     await token.approve(delegate1.address, 200, { from: staker2 });
     await delegate1.stake(200, { from: staker2 });
     assert.equal(await token.balanceOf(staker2).valueOf(), 800);
-    assert.equal(await delegate1.stakeOf(staker2).valueOf(), 200);
+    assert.equal(await delegate1.stakeOf(staker2, await utils.blockTime()).valueOf(), 200);
+    assert.isTrue((await delegate1.getStake(await utils.blockTime())).eq(new BN(300)));
   });
 
   it("should be able to deposit to several delegates", async () => {
@@ -85,49 +87,21 @@ contract('governance > staking', (accounts) => {
     assert.equal(await token.balanceOf(delegate2.address).valueOf(), 800);
   });
 
-  it("should not be able to lock tokens by not owner", async () => {
-    try {
-      await delegate1.lockStake(100, { from: notStaker });
-      assert.fail("was able to lock tokens by not owner");
-    } catch (e) {
-      utils.assertVMError(e);
-    }
+  it("staker stake history should be correctly stored by time", async () => {
+    await token.approve(delegate1.address, 200, { from: staker4 });
+    
+    const blocktime = await utils.blockTime();
+    await utils.increaseTime(10);
+    await delegate1.stake(200, { from: staker4 });
+    assert.isTrue((await token.balanceOf(staker4).valueOf()).eq(new BN(800)));
+    assert.isTrue((await delegate1.stakeOf(staker4, blocktime).valueOf()).eq(new BN(0)));
+    assert.isTrue((await delegate1.stakeOf(staker4, await utils.blockTime()).valueOf()).eq(new BN(200)));
   });
 
-  it("should not be able to lock more tokens than available", async () => {
-    try {
-      await delegate1.lockStake(500, { from: delegate1Owner });
-      assert.fail("was able to lock more tokens than available");
-    } catch (e) {
-      utils.assertVMError(e);
-    }
-  });
-
-  it("should be able to lock tokens", async () => {
-    assert.equal(await delegate1.lockedStake(), 0);
-    await delegate1.lockStake(300, { from: delegate1Owner });
-    assert.equal(await delegate1.lockedStake(), 300);
-    assert.equal(await delegate1.getStake(utils.blockTime()), 300);
-  });
-
-  it("should not be able to withdraw locked tokens", async () => {
-    try {
-      await delegate1.unstake(100, { from: staker1 });
-      assert.fail("was able to withdraw locked tokens");
-    } catch (e) {
-      utils.assertVMError(e);
-    }
-  });
-
-  it("should be able to unlock tokens", async () => {
-    await delegate1.lockStake(0, { from: delegate1Owner });
-    assert.equal(await delegate1.lockedStake(), 0);
-  });
-
-  it("should not be able to withdraw more tokens then initial stake", async () => {
+  it("should not be able to unstake more tokens then initial stake", async () => {
     try {
       await delegate1.unstake(200, { from: staker1 });
-      assert.fail("was able to withdraw more tokens then initial stake");
+      assert.fail("was able to unstake more tokens then initial stake");
     } catch (e) {
       utils.assertVMError(e);
     }
@@ -136,6 +110,7 @@ contract('governance > staking', (accounts) => {
   it("should be able to unstake tokens", async () => {
     await delegate1.unstake(100, { from: staker1 });
     assert.equal(await token.balanceOf(staker1), 1000);
+    assert.isTrue((await delegate1.getStake(await utils.blockTime())).eq(new BN(400)));
   });
 
   it("should not be able to unstake tokens twice", async () => {
@@ -159,32 +134,6 @@ contract('governance > staking', (accounts) => {
   it("should be able to set aerum address if staked before", async () => {
     await delegate1.setAerumAddress(simpleUser, { from: staker2 });
     assert.equal(await delegate1.getAerumAddress(staker2), simpleUser);
-  });
-
-  it("should not be able to lock stake from governance if not admin", async () => {
-    try {
-      await governance.lockStake(delegate1.address, 100, { from: delegate1Owner });
-      assert.fail("was able to lock stake from governance if not admin");
-    } catch (e) {
-      utils.assertVMError(e);
-    }
-  });
-
-  it("should be able to lock stake from governance", async () => {
-    assert.equal(await delegate1.lockedStake(), 0);
-    await governance.lockStake(delegate1.address, 100, { from: owner });
-    assert.equal(await delegate1.lockedStake(), 100);
-  });
-
-  it("should not be able to stake in case delegate not approved", async () => {
-    const delegate = await fixture.createDelegate("Not approved", delegate1Owner);
-    await token.approve(delegate.address, 100, { from: staker1 });
-    try {
-      await delegate.stake(100, { from: staker1 });
-      assert.fail("was able to stake in case delegate not approved");
-    } catch (e) {
-      utils.assertVMError(e);
-    }
   });
 
 });
