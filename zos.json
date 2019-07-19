@@ -1,0 +1,18 @@
+{
+  "zosversion": "2",
+  "name": "governance",
+  "version": "0.1.0",
+  "contracts": {
+    "AerumToken": "AerumToken",
+    "VestingWallet": "VestingWallet",
+    "Delegate": "Delegate",
+    "Governance": "Governance",
+    "OperationStore": "OperationStore",
+    "OwnedUpgradeabilityProxy": "OwnedUpgradeabilityProxy",
+    "DelegateV2": "DelegateV2",
+    "GovernanceV2": "GovernanceV2"
+  },
+  "dependencies": {
+    "openzeppelin-eth": "^2.0.2"
+  }
+}

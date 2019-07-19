@@ -376,3 +376,10 @@ logs
 
 # package lock
 package-lock.json
+.zos.session
+
+coverage/
+coverage.json
+coverageEnv/
+scTopics
+allFiredEvents

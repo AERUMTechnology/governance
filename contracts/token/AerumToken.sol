@@ -15,6 +15,12 @@ contract AerumToken is Ownable, PausableToken {
         balances[owner] = totalSupply_;
     }
 
+    /**
+     * @notice Approves token transfer and executes other transaction
+     * @param _spender Approved tokens spender
+     * @param _value Amount of tokens approved
+     * @param _data Next transaction payload
+     */
     function approveAndCall(address _spender, uint256 _value, bytes _data) public payable returns (bool) {
         require(_spender != address(this));
         require(super.approve(_spender, _value));

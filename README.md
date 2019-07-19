@@ -1,2 +1,2 @@
 # Aerum Governance
-Repository contains governance & XRM token contracts
+Repository contains Aerum governance contracts
